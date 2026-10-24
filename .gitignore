@@ -1,0 +1,4 @@
+.claude/
+notes-server/.env
+notes-server/notas/
+__pycache__/

@@ -1,0 +1,13 @@
+services:
+  fazenda-notas:
+    build: .
+    container_name: fazenda-notas
+    restart: unless-stopped
+    environment:
+      NOTES_TOKEN: ${NOTES_TOKEN:?crie o arquivo .env com NOTES_TOKEN (veja .env.example)}
+      ALLOWED_ORIGIN: https://arodasi-dev.github.io
+    # Só escuta no próprio servidor; o acesso de fora é pelo "tailscale serve" (HTTPS).
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./notas:/data

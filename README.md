@@ -39,3 +39,11 @@ Hoje os dados (CPU, RAM, quedas dos serviços) são **simulados**.
 ## Quando ligar ao servidor real
 
 O GitHub Pages é **HTTPS**, e o navegador bloqueia chamadas de uma página HTTPS para `http://` (conteúdo misto). Para ler os dados do seu homeserver pelo iPhone, o servidor precisa responder em HTTPS, por exemplo com `tailscale serve` (certificado automático) e liberando CORS para o endereço do Pages.
+
+## Terreno secreto (ideias de apps)
+
+No mapa há um terreno coberto de nuvens com um `+`. Tocando nele você escreve ideias de novos apps para o servidor. As ideias ficam no aparelho e, se você configurar o servidor de notas (ícone ⚙️ na tela de ideias), são guardadas como arquivos `.md` numa pasta do homeserver. Veja [`notes-server/`](notes-server/README.md).
+
+## Versão
+
+A versão aparece no canto do painel de status (ex.: `v1.3.0 ↻`). Tocando nela o app apaga o cache e recarrega, buscando a versão mais nova.
