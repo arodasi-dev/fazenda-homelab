@@ -69,6 +69,7 @@ body.touch #help{display:none}
 .crow small{opacity:.7;font-size:10px}
 .crow.on{background:#ffd98a}
 .slot.off{opacity:.45}
+body:not(.config) .adv{display:none!important}   /* configuração do servidor: escondida (abra com ?config) */
 #notes{position:fixed;inset:0;z-index:50;background:rgba(40,30,20,.55);display:flex;align-items:center;justify-content:center;padding:calc(10px + var(--sat)) 10px calc(10px + var(--sab))}
 #notes.hidden{display:none}
 #notes,#notes *{touch-action:pan-y;user-select:text;-webkit-user-select:text}
@@ -108,7 +109,7 @@ body.touch #help{display:none}
   <div class="bar hide-s"><i id="b-cpu" style="background:#e67e22"></i></div>
   <div class="bar hide-s"><i id="b-ram" style="background:#3498db"></i></div>
   <div style="font-size:11px">🥕 <span id="s-dsk"></span>% · 🦆 <span id="s-net"></span> Mb/s</div>
-  <div style="font-size:10px;margin-top:2px;white-space:nowrap"><span id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</span>&nbsp;<span id="livechip"></span>&nbsp;<span id="cfgbtn" title="Servidor" style="cursor:pointer;font-size:12px">⚙️</span></div></div>
+  <div style="font-size:10px;margin-top:2px;white-space:nowrap"><span id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</span>&nbsp;<span id="livechip"></span>&nbsp;<span id="cfgbtn" class="adv" title="Servidor" style="cursor:pointer;font-size:12px">⚙️</span></div></div>
 
 <div id="qbtn">📜</div>
 <div class="box" id="quests"><h4>📜 Missões do dia</h4><div id="qlist"></div></div>
@@ -127,8 +128,8 @@ body.touch #help{display:none}
 <div id="hotbar"></div>
 <div id="notes" class="hidden">
  <div class="box" id="np">
-  <div id="nh"><b>💡 Ideias de novos apps</b><span id="nstat"></span><button id="ncfg" title="Servidor de notas">⚙️</button><button id="nx" title="Fechar">✖</button></div>
-  <div id="ncfgbox" class="hidden">
+  <div id="nh"><b>💡 Ideias de novos apps</b><span id="nstat"></span><button id="ncfg" class="adv" title="Servidor de notas">⚙️</button><button id="nx" title="Fechar">✖</button></div>
+  <div id="ncfgbox" class="hidden adv">
    <b>Servidor de notas</b> (a pasta no seu homeserver)
    <input id="cfgurl" type="url" placeholder="https://meuservidor.tailnet.ts.net" autocapitalize="off" autocorrect="off" spellcheck="false">
    <input id="cfgtoken" type="password" placeholder="Token" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -153,6 +154,7 @@ const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 const WW=1024,WH=640;
 const isTouch=matchMedia('(pointer:coarse)').matches||'ontouchstart' in window;
 if(isTouch)document.body.classList.add('touch');
+if(/[?&]config\b/.test(location.search))document.body.classList.add('config');
 if(!ctx.roundRect)ctx.roundRect=function(x,y,w,h){this.rect(x,y,w,h);};
 let lastErr='',errN=0;
 let dpr=Math.min(2,Math.max(1,window.devicePixelRatio||1)),VW=0,VH=0;
@@ -208,11 +210,15 @@ const PLOTS=[
 ].map((p,i)=>Object.assign(p,{type:'plot',idx:i,unlocked:false,fog:1,idea:null}));
 B.forEach(b=>{b.state='up';b.cpu=rr(5,40);b.ram=rr(20,60);b.cpuT=b.cpu;b.since=Date.now()-rr(2,20)*86400000;b.ang=0;});
 const house=B[0],POND={cx:840,cy:470,rx:68,ry:38};
-const PATHS=[[488,168,16,148],[100,300,780,16],[174,288,16,12],[770,284,16,16],[272,288,20,12],[168,316,16,30],[318,316,16,30],[580,316,16,22],[488,316,16,124],[832,316,16,96],[204,316,20,20],[370,316,20,20],[662,316,20,16]];
+const PATHS=[[488,168,16,148],[100,300,780,16],[770,284,16,16],[488,316,16,124],[832,316,16,96]];
+// zona máxima de cada cercadinho no modo ao vivo (índice = prédio em B); gap = lado do portão
+const ZONES={1:{x:30,y:162,w:420,h:130,anchor:'bottom',gap:'s'},2:{x:30,y:324,w:320,h:112,anchor:'top',gap:'n'},
+ 3:{x:352,y:324,w:132,h:112,anchor:'top',gap:'n'},4:{x:512,y:324,w:100,h:104,anchor:'top',gap:'n'},
+ 5:{x:614,y:324,w:146,h:108,anchor:'top',gap:'n'},6:{x:530,y:162,w:226,h:130,anchor:'bottom',gap:'s'}};
 const inPath=(x,y)=>PATHS.some(p=>x>=p[0]&&x<p[0]+p[2]&&y>=p[1]&&y<p[1]+p[3]);
 
 const solids=[];
-B.forEach(b=>{if(b.meta&&b.type!=='house')return;solids.push({x:b.x+2,y:b.y+b.h*0.45,w:b.w-4,h:b.h*0.55});});
+B.forEach(b=>{if(b.meta&&b.type!=='house')return;b.sol={x:b.x+2,y:b.y+b.h*0.45,w:b.w-4,h:b.h*0.55};solids.push(b.sol);b.ox=b.x;b.oy=b.y;b.ow=b.w;b.oh=b.h;});
 PLOTS.forEach(p=>{p.sol={x:p.x+6,y:p.y+8,w:p.w-12,h:p.h-14};solids.push(p.sol);});
 
 /* ---------- sprites dos prédios (alto detalhe) ---------- */
@@ -330,7 +336,7 @@ PATHS.forEach(([x,y,w,h])=>{for(let i=0;i<w*h/6;i++){const px=x*2+rnd()*w*2|0,py
  for(let ey=0;ey<h*2;ey+=2){[[0,-1],[w*2-1,1]].forEach(([ox,dir])=>{const px=x*2+ox,py=y*2+ey;if(rnd()<.55&&!inPath((px+dir*3)/2,py/2))R(g,px+dir*(1+(rnd()*2|0)),py,2,1+(rnd()*2|0),rnd()<.5?'#79cd8c':'#8edc9d');});}});
 // sombras projetadas (luz vinda de cima à esquerda)
 function shadowBox(x,y,w,h,ht){const S=Math.round(Math.min(ht*.32,26))*2;for(let j=0;j<S;j++){const x0=x*2+4+Math.round(j*1.4),ww=w*2+Math.round(ht*.7*(1-j/S));R(g,x0,y*2-6+j,ww,1,'rgba(35,95,60,.3)');}}
-B.forEach(b=>{if(b.meta&&b.type!=='house')return;shadowBox(b.x,b.y+b.h,b.w,b.h*.9,b.h);});
+B.forEach(b=>{if(b.type!=='house')return;shadowBox(b.x,b.y+b.h,b.w,b.h*.9,b.h);});
 // lago
 (function(){const {cx,cy,rx,ry}=POND;const X=cx*2,Y=cy*2,RX=rx*2,RY=ry*2;
  ell(g,X,Y+2,RX+14,RY+10,'rgba(35,95,60,.25)');ell(g,X,Y,RX+12,RY+8,'#e9d79f');ell(g,X,Y,RX+8,RY+5,'#d8c28a');
@@ -358,15 +364,7 @@ function fenceSegs(p){const L=26,out=[];
  const side=(x,y,len,horiz,gap)=>{if(!gap){out.push([x,y,horiz?len:4,horiz?4:len,horiz]);return;}const half=(len-L)/2;
   out.push([x,y,horiz?half:4,horiz?4:half,horiz]);out.push([horiz?x+half+L:x,horiz?y:y+half+L,horiz?half:4,horiz?4:half,horiz]);};
  side(p.x,p.y,p.w,true,p.gap==='n');side(p.x,p.y+p.h-4,p.w,true,p.gap==='s');side(p.x,p.y,p.h,false,p.gap==='w');side(p.x+p.w-4,p.y,p.h,false,p.gap==='e');return out;}
-B.forEach(b=>{if(!b.pen)return;const p=b.pen;
- R(g,p.x*2,p.y*2,p.w*2,p.h*2,'#9be3a9');
- for(let i=0;i<8;i++)ell(g,(p.x+10+rnd()*(p.w-20))*2,(p.y+10+rnd()*(p.h-20))*2,8+rnd()*10,4+rnd()*4,i%2?'#aaeab6':'#cfae7a');
- for(let i=0;i<p.w*p.h/14;i++)R(g,p.x*2+rnd()*p.w*2|0,p.y*2+rnd()*p.h*2|0,2,1,rnd()<.5?'#7ccf8a':'#e8c84a');
- const tx=(p.x+p.w-26)*2,ty=(p.y+p.h-16)*2;R(g,tx,ty,26,9,'#8a5a3a');R(g,tx+2,ty+2,22,4,'#6bb8e8');R(g,tx,ty,26,1,'#c99560');R(g,tx,ty+9,26,2,'rgba(35,95,60,.3)');
- fenceSegs(p).forEach(([x,y,w,h,horiz])=>{solids.push({x,y,w,h});const X=x*2,Y=y*2,Wd=w*2,Hd=h*2;
-  if(horiz){R(g,X,Y+11,Wd,2,'rgba(35,95,60,.3)');R(g,X,Y+2,Wd,3,'#d9a672');R(g,X,Y+2,Wd,1,'#efc592');R(g,X,Y+7,Wd,3,'#b8864f');for(let i=0;i<=Wd;i+=24){R(g,X+i-1,Y-4,5,15,'#8f5f38');R(g,X+i-1,Y-4,2,15,'#b57a4a');R(g,X+i-1,Y-5,5,1,'#d9a672');}}
-  else{R(g,X+8,Y,2,Hd,'rgba(35,95,60,.3)');R(g,X+2,Y,3,Hd,'#d9a672');R(g,X+2,Y,1,Hd,'#efc592');for(let i=0;i<=Hd;i+=24){R(g,X-1,Y+i-4,6,3,'#c99560');R(g,X-1,Y+i-1,6,14,'#8f5f38');R(g,X-1,Y+i-1,2,14,'#b57a4a');}}});
-});
+// (os cercadinhos são desenhados dinamicamente: veja "cercadinhos" mais abaixo)
 // arbustos, postes de luz
 const LAMPS=[[house.x-6,house.y+house.h+16],[house.x+house.w+6,house.y+house.h+16]];
 function bushAt(x,y){shadowBox(x-8,y,16,10,12);}
@@ -375,6 +373,7 @@ LAMPS.forEach(([x,y])=>{const X=x*2,Y=y*2;ell(g,X+3,Y,7,2,'rgba(35,95,60,.3)');R
 // flores
 const noFlower=(x,y)=>{
  for(const b of B)if(x>b.x-14&&x<b.x+b.w+14&&y>b.y-14&&y<b.y+b.h+14)return true;
+ for(const k in ZONES){const z=ZONES[k];if(x>z.x-10&&x<z.x+z.w+10&&y>z.y-10&&y<z.y+z.h+10)return true;}
  for(const p of PLOTS)if(x>p.x-14&&x<p.x+p.w+14&&y>p.y-14&&y<p.y+p.h+14)return true;
  if(x>ENTRYFIX0.x-14&&x<ENTRYFIX0.x+ENTRYFIX0.w+14&&y>ENTRYFIX0.y-14&&y<ENTRYFIX0.y+ENTRYFIX0.h+14)return true;
  for(const b of B)if(b.pen&&x>b.pen.x-6&&x<b.pen.x+b.pen.w+6&&y>b.pen.y-6&&y<b.pen.y+b.pen.h+6)return true;
@@ -427,9 +426,14 @@ const cam={x:496,y:200};let zoom=innerWidth<700?2.2:3,zoomT=zoom,follow=true,sel
 const A=[],CONTS=new Map();
 // Em modo ao vivo há um bichinho por container; na demonstração, os da lista fixa.
 function buildAnimals(){A.length=0;
- B.forEach(b=>{const z=b.pen||b.zone;if(!z||!b.animal)return;
-  const list=live?(b.conts||[]).slice(0,6):null,n=live?list.length:b.n;
-  for(let i=0;i<n;i++){const a={b,cont:live?list[i]:null,type:b.animal,x:z.x+14+rnd()*(z.w-28),y:z.y+20+rnd()*(z.h-28),dir:1,wait:rnd()*3,tx:0,ty:0,moving:false,ph:rnd()*10};a.tx=a.x;a.ty=a.y;A.push(a);}});}
+ const mk=(b,cont,z)=>{const a={b,cont,type:b.animal,z,x:z.x+rnd()*z.w,y:z.y+rnd()*z.h,dir:1,wait:rnd()*3,tx:0,ty:0,moving:false,ph:rnd()*10};a.tx=a.x;a.ty=a.y;A.push(a);};
+ B.forEach((b,i)=>{
+  if(!b.animal)return;
+  if(live){(YARDS[i]?YARDS[i].houses:[]).forEach(h=>mk(b,h.cont,h.zone));return;}   // um bichinho por casinha
+  const p=b.pen||b.zone;if(!p)return;
+  const z=b.pen?{x:p.x+10,y:p.y+16,w:p.w-20,h:p.h-22}:{x:p.x+10,y:p.y+10,w:p.w-20,h:p.h-14};
+  for(let k=0;k<b.n;k++)mk(b,null,z);});}
+const YARDS={};
 buildAnimals();
 const aState=a=>a.cont?(a.cont.busy?'restarting':a.cont.ok?'up':'down'):a.b.state;
 const aSweat=a=>a.cont?(a.cont.cpu||0)>20:a.b.cpu>75;
@@ -437,8 +441,8 @@ const SPEED={cow:9,pig:11,sheep:8,dog:20,chicken:14};
 function updAnimals(dt){
  for(const a of A){
   if(aState(a)!=='up'){a.moving=false;continue;}
-  const z=a.b.pen||a.b.zone;
-  if(a.wait>0){a.wait-=dt;a.moving=false;if(a.wait<=0){a.tx=z.x+10+Math.random()*(z.w-20);a.ty=z.y+(a.b.pen?16:10)+Math.random()*(z.h-(a.b.pen?22:14));}continue;}
+  const z=a.z;
+  if(a.wait>0){a.wait-=dt;a.moving=false;if(a.wait<=0){a.tx=z.x+Math.random()*z.w;a.ty=z.y+Math.random()*z.h;}continue;}
   const dx=a.tx-a.x,dy=a.ty-a.y,d=Math.hypot(dx,dy);
   if(d<1){a.wait=1+Math.random()*4;a.moving=false;continue;}
   const sp=SPEED[a.type]*dt;a.x+=dx/d*Math.min(sp,d);a.y+=dy/d*Math.min(sp,d);a.moving=true;if(Math.abs(dx)>0.5)a.dir=dx>0?1:-1;
@@ -672,6 +676,84 @@ function syncPlots(initial){
   else if(p.unlocked&&!was)toast('🌫️ Novo terreno desbloqueado!');
   else if(!p.unlocked&&was&&P.x>p.x&&P.x<p.x+p.w&&P.y>p.y&&P.y<p.y+p.h)P.y=p.y+p.h+10;});
 }
+/* ---------- cercadinhos e casinhas (um cercadinho por grupo, uma casinha por container) ---------- */
+const HK={1:'app',2:'agent',3:'db',4:'dns',5:'security',6:'monitor'};
+for(const i in HK){B[i].hkey=HK[i];YARDS[i]={i:+i,b:B[i],rect:null,gap:'s',houses:[],spr:null,sol:[]};}
+function shadowDyn(x,y,w,h,ht){ctx.save();ctx.scale(.5,.5);const S=Math.round(Math.min(ht*.32,26))*2;
+ for(let j=0;j<S;j++)R(ctx,x*2+4+Math.round(j*1.4),y*2-6+j,w*2+Math.round(ht*.7*(1-j/S)),1,'rgba(35,95,60,.3)');ctx.restore();}
+function drawYardGround(c,W,H,gap,seed){
+ const rg=mkrng(900+seed*7+W);
+ R(c,0,0,W,H,'#9be3a9');
+ for(let i=0;i<8;i++)ell(c,20+rg()*(W-40),20+rg()*(H-40),8+rg()*10,4+rg()*4,i%2?'#aaeab6':'#cfae7a');
+ for(let i=0;i<W*H/56;i++)R(c,rg()*W|0,rg()*H|0,2,1,rg()<.5?'#7ccf8a':'#e8c84a');
+ const tx=W-60,ty=H-40;R(c,tx,ty,26,9,'#8a5a3a');R(c,tx+2,ty+2,22,4,'#6bb8e8');R(c,tx,ty,26,1,'#c99560');R(c,tx,ty+9,26,2,'rgba(35,95,60,.3)');
+ fenceSegs({x:0,y:0,w:W/2,h:H/2,gap}).forEach(([x,y,w,h,horiz])=>{const X=x*2,Y=y*2,Wd=w*2,Hd=h*2;
+  if(horiz){R(c,X,Y+11,Wd,2,'rgba(35,95,60,.3)');R(c,X,Y+2,Wd,3,'#d9a672');R(c,X,Y+2,Wd,1,'#efc592');R(c,X,Y+7,Wd,3,'#b8864f');for(let i=0;i<=Wd;i+=24){R(c,X+i-1,Y-4,5,15,'#8f5f38');R(c,X+i-1,Y-4,2,15,'#b57a4a');R(c,X+i-1,Y-5,5,1,'#d9a672');}}
+  else{R(c,X+8,Y,2,Hd,'rgba(35,95,60,.3)');R(c,X+2,Y,3,Hd,'#d9a672');R(c,X+2,Y,1,Hd,'#efc592');for(let i=0;i<=Hd;i+=24){R(c,X-1,Y+i-4,6,3,'#c99560');R(c,X-1,Y+i-1,6,14,'#8f5f38');R(c,X-1,Y+i-1,2,14,'#b57a4a');}}});
+}
+function setYard(i,rect,gap,houses){
+ const Y=YARDS[i];
+ Y.sol.forEach(s=>{const k=solids.indexOf(s);if(k>=0)solids.splice(k,1);});Y.sol=[];
+ Y.rect=rect;Y.gap=gap;Y.houses=houses||[];Y.spr=null;
+ if(!rect)return;
+ fenceSegs({x:rect.x,y:rect.y,w:rect.w,h:rect.h,gap}).forEach(([x,y,w,h])=>{const s={x,y,w,h};Y.sol.push(s);solids.push(s);});
+ Y.houses.forEach(h=>{const s={x:h.x+2,y:h.y+h.h*0.5,w:h.w-4,h:h.h*0.5};Y.sol.push(s);solids.push(s);});
+ Y.spr=sprite(rect.w*2,rect.h*2,(c,W,H)=>drawYardGround(c,W,H,gap,i));
+}
+function unstickPlayer(){
+ if(!blockedP(P.x,P.y))return;
+ for(let r=4;r<=120;r+=4)for(const [dx,dy] of [[0,r],[0,-r],[r,0],[-r,0]])if(!blockedP(P.x+dx,P.y+dy)){P.x+=dx;P.y+=dy;return;}
+}
+function restoreDemoYards(){
+ for(let i=1;i<=6;i++){const b=B[i];
+  b.x=b.ox;b.y=b.oy;b.w=b.ow;b.h=b.oh;b.sol.w=b.ow-4;b.sol.h=b.oh*0.55;
+  setYard(i,b.pen?{x:b.pen.x,y:b.pen.y,w:b.pen.w,h:b.pen.h}:null,b.pen?b.pen.gap:'s',[]);}
+}
+// casinhas em miniatura: os sprites grandes dos prédios reduzidos (suavizados) e guardados prontos
+const MINI_SC={1:.42,2:.62,3:.7,4:.9,5:.62,6:.4};
+const MINI=(()=>{const m={};for(const i in MINI_SC){const src=B[i].spr,sc=MINI_SC[i],c2=document.createElement('canvas');
+ c2.width=Math.ceil(src.width*sc);c2.height=Math.ceil(src.height*sc);const x=c2.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(src,0,0,c2.width,c2.height);
+ m[i]={cv:c2,sc,w:B[i].w*sc,h:B[i].h*sc};}return m;})();
+function layoutLive(){
+ for(let i=1;i<=6;i++){
+  const z=ZONES[i],b=B[i],cs=b.conts||[],mi=MINI[i];
+  const maxCols=Math.max(1,Math.floor((z.w-16)/40)),maxRows=Math.max(1,Math.floor((z.h-16)/44));
+  const cols=Math.max(1,Math.min(cs.length||1,maxCols)),shown=cs.slice(0,maxCols*maxRows);
+  const rows=Math.max(1,Math.ceil(shown.length/cols));
+  const w=Math.max(64,cols*40+16),h=rows*44+16;
+  const rect={x:z.x,y:z.anchor==='bottom'?z.y+z.h-h:z.y,w,h};
+  const houses=shown.map((c,k)=>{const x0=rect.x+8+(k%cols)*40,y0=rect.y+8+Math.floor(k/cols)*44,cx=x0+20,base=y0+34;
+   return{cont:c,x:cx-mi.w/2,y:base-mi.h,w:mi.w,h:mi.h,key:i,zone:{x:cx-13,y:base+3,w:26,h:6}};});
+  b.extra=cs.length-shown.length;
+  setYard(i,rect,z.gap,houses);
+  b.x=rect.x;b.y=rect.y;b.w=rect.w;b.h=rect.h;b.sol.w=-1;b.sol.h=-1;   // o prédio grande some no modo ao vivo
+ }
+ unstickPlayer();
+}
+function drawYard(Y){
+ const r=Y.rect;if(!r||!inView(r))return;
+ // trilha do portão até a estrada
+ const cx=r.x+r.w/2;ctx.save();ctx.scale(.5,.5);
+ if(Y.gap==='s'){R(ctx,(cx-9)*2,(r.y+r.h-4)*2,36,(302-(r.y+r.h-4))*2,'#dcb883');R(ctx,(cx-9)*2,(r.y+r.h-4)*2,2,(302-(r.y+r.h-4))*2,'#c9a06a');}
+ else{R(ctx,(cx-9)*2,314*2,36,(r.y+4-314)*2,'#dcb883');R(ctx,(cx-9)*2,314*2,2,(r.y+4-314)*2,'#c9a06a');}
+ ctx.restore();
+ if(Y.spr)blit(Y.spr,r.x-PAD/2,r.y-PAD/2);
+}
+function drawHouse(h,t){
+ const m=MINI[h.key],c=h.cont,st=c.busy?'restarting':c.ok?'up':'down';
+ ctx.save();ctx.translate(h.x+h.w/2,h.y+h.h);ctx.scale(.5,.5);de(0,0,Math.round(h.w)+4,4,'rgba(35,95,60,.28)');ctx.restore();
+ if(st!=='up')ctx.filter='grayscale(1) brightness(.85)';
+ blit(m.cv,h.x-PAD*m.sc/2,h.y-PAD*m.sc/2);
+ ctx.filter='none';
+ if(h.key===6){   // moinho: pás giram enquanto o container está no ar
+  const hx=h.x+36*m.sc/2,hy=h.y+60*m.sc/2,ang=st==='up'?t*0.9:0;
+  ctx.save();ctx.translate(hx,hy);ctx.rotate(ang);ctx.scale(.5*m.sc*1.6,.5*m.sc*1.6);
+  for(let k=0;k<4;k++){ctx.save();ctx.rotate(k*Math.PI/2);d_(-2,6,4,52,'#7a4a2a');d_(3,12,18,40,'#fff6e6');d_(3,12,18,1,'#d9ccb0');ctx.restore();}
+  de(0,0,6,6,'#5a3a22');ctx.restore();}
+ if(st!=='up'){ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillStyle='#000';ctx.fillText(st==='restarting'?'🔄':'❗',h.x+h.w/2,h.y-2);}
+ if(selCont===c){const p=1+Math.sin(t*5)*0.5;ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=1;ctx.setLineDash([3,2]);ctx.strokeRect(h.x-3-p,h.y-3-p,h.w+6+p*2,h.h+14+p*2);ctx.setLineDash([]);}
+}
+restoreDemoYards();
 function drawEgg(e){ctx.save();ctx.translate(Math.round(e.x*2)/2,Math.round(e.y*2)/2);ctx.scale(.5,.5);de(1,0,5,2,'rgba(35,95,60,.3)');de(0,-4,4,5,'#fffdf5');d_(-2,-7,2,2,'#fff');d_(-3,-1,6,1,'#e0d8c0');ctx.restore();}
 
 /* ---------- atualização ---------- */
@@ -727,6 +809,7 @@ function nightF(){if(nightMode==='day')return 0;if(nightMode==='night')return 1;
 function blit(sp,ax,ay){ctx.drawImage(sp,Math.round(ax*2)/2,Math.round(ay*2)/2,sp.width/2,sp.height/2);}
 function drawBuilding(b,t){
  const down=b.state!=='up';
+ if(b.type!=='house')shadowDyn(b.x,b.y+b.h,b.w,b.h*.9,b.h);
  if(down&&!b.meta)ctx.filter='grayscale(1) brightness(.8)';
  blit(b.spr,b.x-PAD/2,b.y-PAD/2);
  ctx.filter='none';
@@ -749,17 +832,19 @@ function draw(t){
  ctx.drawImage(stat,0,0,WW,WH);
  drawField(t);drawPond(t);
  PLOTS.forEach(p=>{if(p.unlocked)drawPlotGround(p);});
+ for(const i in YARDS)drawYard(YARDS[i]);
  eggs.forEach(drawEgg);
  const vx0=cam.x-VW/2/cs-40,vx1=cam.x+VW/2/cs+40,vy0=cam.y-VH/2/cs-40,vy1=cam.y+VH/2/cs+70;
  const E=[];
  VIEW.x0=vx0;VIEW.x1=vx1;VIEW.y0=vy0;VIEW.y1=vy1;
- B.forEach(b=>{if(b.type==='field'||b.type==='pond')return;E.push({y:b.y+b.h,k:0,o:b});});
+ B.forEach(b=>{if(b.type==='field'||b.type==='pond'||(live&&b.hkey))return;E.push({y:b.y+b.h,k:0,o:b});});
+ if(live)for(const i in YARDS)for(const h of YARDS[i].houses)E.push({y:h.y+h.h,k:6,o:h});
  PLOTS.forEach(p=>{if(p.unlocked)E.push({y:p.y+p.h*0.7,k:4,o:p});});
  A.forEach(a=>E.push({y:a.y,k:1,o:a}));
  E.push({y:P.y,k:2});
  trees.forEach(tr=>{if(tr.x>vx0&&tr.x<vx1&&tr.y>vy0&&tr.y<vy1)E.push({y:tr.y,k:3,o:tr});});
  E.sort((a,b)=>a.y-b.y);
- for(const e of E){switch(e.k){case 0:drawBuilding(e.o,t);break;case 1:drawAnimal(e.o,t);break;case 2:drawPlayer(t);break;case 4:drawPlotContent(e.o,t);break;case 3:{const sp=treeSpr[e.o.t][e.o.v];blit(sp,e.o.x-(30+PAD)/2,e.o.y-(82+PAD)/2);break;}}}
+ for(const e of E){switch(e.k){case 0:drawBuilding(e.o,t);break;case 1:drawAnimal(e.o,t);break;case 2:drawPlayer(t);break;case 4:drawPlotContent(e.o,t);break;case 6:drawHouse(e.o,t);break;case 3:{const sp=treeSpr[e.o.t][e.o.v];blit(sp,e.o.x-(30+PAD)/2,e.o.y-(82+PAD)/2);break;}}}
  PLOTS.forEach(p=>drawFog(p,t));drawLocks();drawEntry(t);
  puffs.forEach(p=>{const r_=3+p.l*3;ctx.globalAlpha=Math.max(0,0.65-p.l*0.22);ctx.save();ctx.translate(p.x,p.y);ctx.scale(.5,.5);de(0,0,r_|0,r_|0,'#ececec');ctx.restore();});ctx.globalAlpha=1;
  petals.forEach(p=>{if(p.x<vx0||p.x>vx1||p.y<vy0||p.y>vy1)return;ctx.save();ctx.translate(Math.round(p.x*2)/2,Math.round(p.y*2)/2);ctx.scale(.5,.5);d_(0,0,3,2,'#ffb8d2');d_(2,1,2,1,'#ff8fb8');ctx.restore();});
@@ -773,14 +858,17 @@ function draw(t){
    ctx.globalCompositeOperation='source-over';}}
  ctx.setTransform(dpr,0,0,dpr,0,0);
  ctx.font='bold 11px "Trebuchet MS",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
- const LB=B.concat(PLOTS.filter(p=>p.unlocked&&p.fog<0.3&&p.idea).map(p=>{const st=p.idea.stage||'idea',tt=p.idea.title;
+ const houseLb=[];
+ if(live)for(const i in YARDS)for(const h of YARDS[i].houses){const n=h.cont.name;
+  if(cs>=3.2||h.cont===selCont)houseLb.push({type:'houselabel',name:n.length>14&&h.cont!==selCont?n.slice(0,13)+'…':n,x:h.x+h.w/2,y:h.y-4,w:0,h:0,meta:false,state:h.cont.busy?'restarting':h.cont.ok?'up':'down',cpu:0});}
+ const LB=B.concat(houseLb,PLOTS.filter(p=>p.unlocked&&p.fog<0.3&&p.idea).map(p=>{const st=p.idea.stage||'idea',tt=p.idea.title;
   return{type:'plotlabel',name:STAGES[st].e+' '+(tt.length>20?tt.slice(0,19)+'…':tt),x:p.x+p.w/2,y:p.y+p.h*0.7-40,w:0,h:0,meta:true,state:'up',cpu:0};}));
  for(const b of LB){
   let txt=b.name,col='#5c5';
   if(b.type==='field')txt='🥕 Horta · '+Math.round(S.dsk)+'%';else if(b.type==='pond')txt='🦆 Lago · '+Math.round(S.net)+' Mb/s';
   else if(b.type==='house')txt='🏠 '+b.name;
   if(b.state==='down')col='#e44';else if(b.state==='restarting')col='#f6b93b';else if(b.cpu>75)col='#f6b93b';
-  const wx=b.x+b.w/2,wy=b.type==='plotlabel'?b.y:b.type==='field'?b.y-10:b.type==='pond'?POND.cy-POND.ry-14:b.y-(b.animal||b.type==='mill'?14:6);
+  const wx=b.x+b.w/2,wy=b.type==='plotlabel'||b.type==='houselabel'?b.y:b.type==='field'?b.y-10:b.type==='pond'?POND.cy-POND.ry-14:b.y-(b.animal||b.type==='mill'?14:6);
   const sx=(wx-cam.x)*cs+VW/2,sy=(wy-cam.y)*cs+VH/2;
   if(sx<-100||sx>VW+100||sy<-30||sy>VH+30)continue;
   const w=ctx.measureText(txt).width+(b.meta?16:26);
@@ -835,6 +923,7 @@ function pick(w){
  let best=null,bd=9;lastPickCont=null;
  for(const a of A){const d=Math.hypot(a.x-w.x,a.y-6-w.y);if(d<bd){bd=d;best=a.b;lastPickCont=a.cont||null;}}
  if(best)return best;
+ if(live)for(const i in YARDS)for(const h of YARDS[i].houses)if(w.x>=h.x-3&&w.x<=h.x+h.w+3&&w.y>=h.y-3&&w.y<=h.y+h.h+12){lastPickCont=h.cont;return YARDS[i].b;}
  for(const b of B){if(w.x>=b.x-4&&w.x<=b.x+b.w+4&&w.y>=b.y-4&&w.y<=b.y+b.h+4)return b;}
  if(((w.x-POND.cx)/POND.rx)**2+((w.y-POND.cy)/POND.ry)**2<1)return B[8];
  for(const p of PLOTS)if(w.x>=p.x&&w.x<=p.x+p.w&&w.y>=p.y&&w.y<=p.y+p.h)return p;
@@ -925,7 +1014,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.5.0',APP_DATE='24/10/2026';
+const APP_VERSION='1.6.0',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
@@ -933,7 +1022,7 @@ let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOp
 const persist=()=>{try{localStorage.setItem(NK,JSON.stringify({notes,pendDel}));}catch(e){}};
 const $n=id=>document.getElementById(id);
 const newest=()=>[...notes].sort((a,b)=>b.updated.localeCompare(a.updated));
-function setStat(k,extra){const m={ok:'☁️✅ Sincronizado com o servidor',local:'📱 Só neste aparelho (configure o servidor em ⚙️)',err:'⚠️ Servidor indisponível: salvo só aqui'+(extra?' ('+extra+')':''),sync:'🔄 Sincronizando…'};$n('nstat').textContent=m[k];}
+function setStat(k,extra){const m={ok:'☁️✅ Sincronizado com o servidor',local:'📱 Só neste aparelho',err:'⚠️ Servidor indisponível: salvo só aqui'+(extra?' ('+extra+')':''),sync:'🔄 Sincronizando…'};$n('nstat').textContent=m[k];}
 async function api(path,method='GET',body){
  const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),8000);
  try{const r=await fetch(cfg.url.replace(/\/+$/,'')+path,{method,signal:ctl.signal,headers:{'Authorization':'Bearer '+cfg.token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
@@ -1014,7 +1103,7 @@ function updateBuildings(){
   b.state=cs.some(c=>c.busy)?'restarting':cs.some(c=>!c.ok)?'down':'up';
   b.cpu=cs.length?cs.reduce((s,c)=>s+(c.cpu||0),0)/cs.length:0;
   b.ram=cs.length?cs.reduce((s,c)=>s+(c.mem_pct||0),0)/cs.length:0;
-  b.name=LIVE_B[i][0]+(cs.length?'':dockerBad?' (sem leitura)':' (vazio)');
+  b.name=LIVE_B[i][0]+(cs.length?' · '+cs.length+(b.extra>0?' (+'+b.extra+' ocultos)':''):dockerBad?' (sem leitura)':' (vazio)');
   b.role=LIVE_B[i][1]+(cs.length?'':dockerBad?': não consegui ler o Docker':': nenhum container nesta categoria');}
 }
 function restoreDemo(){for(let i=1;i<=6;i++){const b=B[i];b.name=DEMO_B[i].name;b.role=DEMO_B[i].role;b.conts=null;b.state='up';b.cpu=rr(5,40);b.cpuT=b.cpu;}}
@@ -1034,7 +1123,7 @@ function syncContainers(list){
  }
  for(const n of [...CONTS.keys()])if(!seen.has(n)){CONTS.delete(n);changed=true;}
  updateBuildings();
- if(changed)buildAnimals();
+ if(changed){layoutLive();buildAnimals();}
  if(selCont&&!CONTS.has(selCont.name))selCont=null;
 }
 function applyLive(d){
@@ -1057,6 +1146,7 @@ function setLive(v){
  document.querySelectorAll('.slot').forEach((s,i)=>s.classList.toggle('off',live&&i>=3));
  if(live){liveSnap=true;toast('🟢 Conectado ao servidor!');updateBuildings();}
  else{toast('🔴 Perdi a conexão com o servidor. Voltando à demonstração.');CONTS.clear();restoreDemo();}
+ if(live)layoutLive();else restoreDemoYards();
  buildAnimals();selCont=null;sel=null;renderInfo(true);
 }
 async function pollLive(){

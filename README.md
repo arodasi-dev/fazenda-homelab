@@ -59,10 +59,14 @@ Tocando num terreno liberado você abre a ideia dele. As ideias ficam no aparelh
 Com o servidor da fazenda ligado ([`notes-server/`](notes-server/README.md)), o app lê o seu homeserver de verdade:
 
 - **CPU, RAM, disco e rede** do painel e da fazenda (horta = disco, lago = rede, fumaça da casa = CPU).
-- **Cada container Docker vira um bichinho** no prédio do tipo dele (DNS, agentes, apps, bancos de dados, segurança, monitoramento).
-- Container parado ou não saudável deixa o bichinho doente 🤒. Tocando nele você vê CPU, memória e os **logs**.
+- **Cada container Docker vira uma casinha**, com um bichinho ao lado, dentro do cercadinho do tipo dele (apps, agentes, bancos de dados, DNS, segurança, monitoramento). O cercadinho cresce conforme o número de containers.
+- Container parado ou não saudável deixa a casinha cinza e o bichinho doente 🤒. Tocando na casinha você vê CPU, memória e os **logs**, e o nome aparece ao dar zoom.
 - O painel mostra `🟢 ao vivo`, `🔴 sem conexão` ou `🎮 demonstração`. Sem servidor configurado (⚙️), o app roda com dados simulados.
 - Na versão ao vivo, as ações "Backup", "Atualizar" e "Limpar" ficam desativadas, porque ainda não fazem nada de verdade no servidor.
+
+## Configuração do servidor
+
+O endereço e o token do servidor são configurados uma vez e ficam escondidos. Para mudar, abra o app com `?config` no final do endereço (por exemplo `.../fazenda-homelab/?config`): aparece o ⚙️ para editar.
 
 ## Versão
 
