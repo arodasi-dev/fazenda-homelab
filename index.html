@@ -62,7 +62,13 @@ body.touch #help{display:none}
  #toasts{top:auto;bottom:calc(220px + var(--sab))}
  #joy{bottom:calc(76px + var(--sab));width:116px;height:116px}
 }
-#ver{font-size:10px;opacity:.75;margin-top:2px;cursor:pointer;text-decoration:underline dotted}
+#ver{opacity:.8;cursor:pointer;text-decoration:underline dotted}
+#i-logs{max-height:120px;overflow:auto;font-size:10px;background:#2b2118;color:#f3e2b3;border-radius:6px;padding:6px;margin-top:6px;white-space:pre-wrap;word-break:break-all;user-select:text;-webkit-user-select:text}
+#i-logs.hidden{display:none}
+.crow{display:flex;flex-direction:column;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:12px}
+.crow small{opacity:.7;font-size:10px}
+.crow.on{background:#ffd98a}
+.slot.off{opacity:.45}
 #notes{position:fixed;inset:0;z-index:50;background:rgba(40,30,20,.55);display:flex;align-items:center;justify-content:center;padding:calc(10px + var(--sat)) 10px calc(10px + var(--sab))}
 #notes.hidden{display:none}
 #notes,#notes *{touch-action:pan-y;user-select:text;-webkit-user-select:text}
@@ -102,7 +108,7 @@ body.touch #help{display:none}
   <div class="bar hide-s"><i id="b-cpu" style="background:#e67e22"></i></div>
   <div class="bar hide-s"><i id="b-ram" style="background:#3498db"></i></div>
   <div style="font-size:11px">🥕 <span id="s-dsk"></span>% · 🦆 <span id="s-net"></span> Mb/s</div>
-  <div id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</div></div>
+  <div style="font-size:10px;margin-top:2px;white-space:nowrap"><span id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</span>&nbsp;<span id="livechip"></span>&nbsp;<span id="cfgbtn" title="Servidor" style="cursor:pointer;font-size:12px">⚙️</span></div></div>
 
 <div id="qbtn">📜</div>
 <div class="box" id="quests"><h4>📜 Missões do dia</h4><div id="qlist"></div></div>
@@ -111,6 +117,7 @@ body.touch #help{display:none}
   <h4 id="i-name"></h4>
   <div id="i-role" style="font-size:12px;margin-bottom:4px"></div>
   <div id="i-body"></div>
+  <pre id="i-logs" class="hidden"></pre>
   <div id="i-btns"></div>
 </div>
 
@@ -393,29 +400,43 @@ trees.forEach(t=>{t.v=rnd()*3|0;if(t.t!==2)solids.push({x:t.x-3,y:t.y-3,w:6,h:3}
 /* ---------- dados simulados ---------- */
 const S={cpu:35,ram:55,dsk:68,net:30,cpuT:35,ramT:55,netT:30,upBase:23*86400+4*3600,t0:Date.now()};
 let xp=40,lv=3,coins=120,nightMode='auto';
+let live=false;   // true quando está lendo o servidor de verdade
 const quests=[
- {k:'backup',t:'💾 Fazer um backup',done:false},
- {k:'update',t:'⬆️ Atualizar 1 container',done:false},
- {k:'clean',t:'🧹 Limpar o disco',done:false},
- {k:'eggs',t:'🥚 Coletar 3 ovos',n:0,goal:3,done:false},
- {k:'idea',t:'💡 Plantar uma ideia (libera um terreno)',done:false}
-];
+ {k:'backup',t:'💾 Fazer um backup',mode:'demo'},
+ {k:'update',t:'⬆️ Atualizar 1 container',mode:'demo'},
+ {k:'clean',t:'🧹 Limpar o disco',mode:'demo'},
+ {k:'visit',t:'🔍 Inspecionar 3 prédios',n:0,goal:3,mode:'live'},
+ {k:'eggs',t:'🥚 Coletar 3 ovos',n:0,goal:3},
+ {k:'idea',t:'💡 Plantar uma ideia (libera um terreno)'}
+].map(q=>Object.assign({done:false},q));
+const questOn=q=>!q.mode||q.mode===(live?'live':'demo');
+const GK='fazenda.game.v1',today=()=>new Date().toLocaleDateString('sv');
+function loadGame(){try{const j=JSON.parse(localStorage.getItem(GK)||'null');if(!j)return;
+ xp=j.xp??xp;lv=j.lv??lv;coins=j.coins??coins;
+ if(j.day===today())quests.forEach(q=>{const s=j.q&&j.q[q.k];if(s){q.done=!!s.done;if(q.goal)q.n=s.n||0;}});}catch(e){}}
+function saveGame(){try{const q={};quests.forEach(x=>q[x.k]={done:x.done,n:x.n||0});localStorage.setItem(GK,JSON.stringify({xp,lv,coins,day:today(),q}));}catch(e){}}
 function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.getElementById('toasts').appendChild(d);setTimeout(()=>d.remove(),3700);}
 function need(){return 100+lv*40;}
 function addXP(n,why){xp+=n;while(xp>=need()){xp-=need();lv++;coins+=50;toast('🎉 Subiu para o nível '+lv+'! +50 🪙');}if(why)toast(why+' +'+n+' XP');}
-function quest(k,n=1){const q=quests.find(q=>q.k===k);if(!q||q.done)return;if(q.goal){q.n+=n;if(q.n<q.goal)return;}q.done=true;addXP(60,'📜 Missão cumprida!');}
-const upCount=()=>B.filter(b=>b.animal||b.type==='mill').filter(b=>b.state==='up').length;
+function quest(k,n=1){const q=quests.find(q=>q.k===k);if(!q||q.done||!questOn(q))return;if(q.goal){q.n+=n;if(q.n<q.goal)return;}q.done=true;addXP(60,'📜 Missão cumprida!');}
+const upCount=()=>live?[...CONTS.values()].filter(c=>c.ok).length:B.filter(b=>b.animal||b.type==='mill').filter(b=>b.state==='up').length;
 
 /* ---------- entidades ---------- */
 const P={x:496,y:200,dir:1,f:'down',moving:false};
 const cam={x:496,y:200};let zoom=innerWidth<700?2.2:3,zoomT=zoom,follow=true,sel=null,zAnchor=null;
-const A=[];
-B.forEach(b=>{const z=b.pen||b.zone;if(!z||!b.animal)return;
- for(let i=0;i<b.n;i++){const a={b,type:b.animal,x:z.x+14+rnd()*(z.w-28),y:z.y+20+rnd()*(z.h-28),dir:1,wait:rnd()*3,tx:0,ty:0,moving:false,ph:rnd()*10};a.tx=a.x;a.ty=a.y;A.push(a);}});
+const A=[],CONTS=new Map();
+// Em modo ao vivo há um bichinho por container; na demonstração, os da lista fixa.
+function buildAnimals(){A.length=0;
+ B.forEach(b=>{const z=b.pen||b.zone;if(!z||!b.animal)return;
+  const list=live?(b.conts||[]).slice(0,6):null,n=live?list.length:b.n;
+  for(let i=0;i<n;i++){const a={b,cont:live?list[i]:null,type:b.animal,x:z.x+14+rnd()*(z.w-28),y:z.y+20+rnd()*(z.h-28),dir:1,wait:rnd()*3,tx:0,ty:0,moving:false,ph:rnd()*10};a.tx=a.x;a.ty=a.y;A.push(a);}});}
+buildAnimals();
+const aState=a=>a.cont?(a.cont.busy?'restarting':a.cont.ok?'up':'down'):a.b.state;
+const aSweat=a=>a.cont?(a.cont.cpu||0)>20:a.b.cpu>75;
 const SPEED={cow:9,pig:11,sheep:8,dog:20,chicken:14};
 function updAnimals(dt){
  for(const a of A){
-  if(a.b.state!=='up'){a.moving=false;continue;}
+  if(aState(a)!=='up'){a.moving=false;continue;}
   const z=a.b.pen||a.b.zone;
   if(a.wait>0){a.wait-=dt;a.moving=false;if(a.wait<=0){a.tx=z.x+10+Math.random()*(z.w-20);a.ty=z.y+(a.b.pen?16:10)+Math.random()*(z.h-(a.b.pen?22:14));}continue;}
   const dx=a.tx-a.x,dy=a.ty-a.y,d=Math.hypot(dx,dy);
@@ -485,7 +506,7 @@ function dChicken(down,wk,t,a){
 }
 const ANIM={cow:[22,dCow],pig:[18,dPig],sheep:[18,dSheep],dog:[14,dDog],chicken:[8,dChicken]};
 function drawAnimal(a,t){
- const down=a.b.state!=='up';const x=Math.round(a.x*2)/2,y=Math.round(a.y*2)/2;
+ const ast=aState(a),down=ast!=='up';const x=Math.round(a.x*2)/2,y=Math.round(a.y*2)/2;
  const wk=a.moving?Math.floor(t*6+a.ph)%2:0;
  ctx.save();ctx.translate(x,y);ctx.scale(.5,.5);if(a.dir<0)ctx.scale(-1,1);
  if(down)ctx.filter='grayscale(.7)';
@@ -493,8 +514,8 @@ function drawAnimal(a,t){
  a_moving=a.moving&&!down;ANIM[a.type][1](down,wk,t,a);
  ctx.restore();
  ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillStyle='#000';
- if(down)ctx.fillText(a.b.state==='restarting'?'🔄':'🤒',x,y-16);
- else if(a.b.cpu>75)ctx.fillText('💦',x+3,y-16);
+ if(down)ctx.fillText(ast==='restarting'?'🔄':'🤒',x,y-16);
+ else if(aSweat(a))ctx.fillText('💦',x+3,y-16);
  else if(!a.moving&&((t*0.5+a.ph)%9)<1.4)ctx.fillText(a.type==='dog'?'❤️':'🎵',x+3,y-17);
 }
 function drawPlayer(t){
@@ -549,7 +570,7 @@ function cropDraw(k,stage){
  }
 }
 function drawPond(t){
- const {cx,cy,rx,ry}=POND;const k=S.net/100;
+ const {cx,cy,rx,ry}=POND;const k=clamp(S.net/100,0,1);
  ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=0.7;
  const n=1+Math.round(k*3);
  for(let i=0;i<n;i++){const p=((t*0.5+i/n)%1);ctx.globalAlpha=1-p;ctx.beginPath();ctx.ellipse(cx-10+i*8,cy+2,8+p*34,3+p*14,0,0,Math.PI*2);ctx.stroke();}
@@ -672,15 +693,14 @@ function update(dt,t){
   follow=true;}
  updAnimals(dt);
  PLOTS.forEach(p=>{const tg=p.unlocked?0:1;if(p.fog!==tg){p.fog+=(tg-p.fog)*Math.min(1,dt*2.6);if(Math.abs(tg-p.fog)<0.01)p.fog=tg;}});
- eggT+=dt;if(eggT>6){eggT=0;const co=B[2];if(co.state==='up'&&eggs.length<6){const ch=A.filter(a=>a.b===co);const a=ch[Math.random()*ch.length|0];eggs.push({x:a.x+(Math.random()*6-3),y:a.y+2});}}
+ eggT+=dt;if(eggT>6){eggT=0;if(eggs.length<6){const ch=A.filter(a=>a.type==='chicken'&&aState(a)==='up');if(ch.length){const a=ch[Math.random()*ch.length|0];eggs.push({x:a.x+(Math.random()*6-3),y:a.y+2});}}}
  for(let i=eggs.length-1;i>=0;i--){const e=eggs[i];if(Math.hypot(e.x-P.x,e.y-P.y)<9){eggs.splice(i,1);coins+=5;quest('eggs');toast('🥚 Ovo coletado! +5 🪙');}}
- S.cpuT+=rr(-8,8);S.cpuT=clamp(S.cpuT,8,92);S.cpu+=(S.cpuT-S.cpu)*dt*0.8;
- S.ramT+=rr(-3,3);S.ramT=clamp(S.ramT,35,85);S.ram+=(S.ramT-S.ram)*dt*0.5;
- S.netT+=rr(-14,14);S.netT=clamp(S.netT,3,95);S.net+=(S.netT-S.net)*dt;
- B.forEach(b=>{if(!b.animal&&b.type!=='mill')return;if(b.state!=='up'){b.cpu=0;return;}b.ang+=dt*0.9;if(Math.random()<dt*0.5)b.cpuT=rr(3,90);b.cpu+=(b.cpuT-b.cpu)*dt*0.9;b.ram+=(rr(20,70)-b.ram)*dt*0.1;});
- failT-=dt;if(failT<=0){failT=rr(25,50);const ups=B.filter(b=>(b.animal||b.type==='mill')&&b.state==='up');if(ups.length&&!B.some(b=>b.state==='down')){const b=ups[Math.random()*ups.length|0];b.state='down';toast('⚠️ '+b.name+' caiu! Toque nele e reinicie.');}}
+ if(!live){S.cpuT+=rr(-8,8);S.cpuT=clamp(S.cpuT,8,92);S.ramT+=rr(-3,3);S.ramT=clamp(S.ramT,35,85);S.netT+=rr(-14,14);S.netT=clamp(S.netT,3,95);}
+ S.cpu+=(S.cpuT-S.cpu)*dt*0.8;S.ram+=(S.ramT-S.ram)*dt*0.5;S.net+=(S.netT-S.net)*dt;
+ B.forEach(b=>{if(!b.animal&&b.type!=='mill')return;if(live){if(b.state==='up')b.ang+=dt*0.9;return;}if(b.state!=='up'){b.cpu=0;return;}b.ang+=dt*0.9;if(Math.random()<dt*0.5)b.cpuT=rr(3,90);b.cpu+=(b.cpuT-b.cpu)*dt*0.9;b.ram+=(rr(20,70)-b.ram)*dt*0.1;});
+ failT-=dt;if(failT<=0&&!live){failT=rr(25,50);const ups=B.filter(b=>(b.animal||b.type==='mill')&&b.state==='up');if(ups.length&&!B.some(b=>b.state==='down')){const b=ups[Math.random()*ups.length|0];b.state='down';toast('⚠️ '+b.name+' caiu! Toque nele e reinicie.');}}
  coinT-=dt;if(coinT<=0){coinT=6;coins+=upCount();}
- B.forEach(b=>{if(b.state==='restarting'){b.timer-=dt;if(b.timer<=0){b.state='up';b.since=Date.now();addXP(b.wasDown?50:15,'✅ '+b.name+' voltou!');}}});
+ if(!live)B.forEach(b=>{if(b.state==='restarting'){b.timer-=dt;if(b.timer<=0){b.state='up';b.since=Date.now();addXP(b.wasDown?50:15,'✅ '+b.name+' voltou!');}}});
  petals.forEach(p=>{p.x+=(p.vx+Math.sin(t+p.ph)*5)*dt;p.y+=p.vy*dt;if(p.y>WH||p.x>WW){p.y=-5;p.x=Math.random()*WW;}});
  puffT-=dt;if(puffT<=0&&S.cpu>45){puffT=Math.max(0.25,1.6-S.cpu/70);puffs.push({x:house.x+house.w/2+29,y:house.y+1,l:0});}
  puffs.forEach(p=>{p.l+=dt;p.y-=9*dt;p.x+=3*dt;});while(puffs.length&&puffs[0].l>3)puffs.shift();
@@ -812,8 +832,8 @@ const joyEnd=()=>{joy.on=false;joy.x=joy.y=0;knob.style.transform='';};
 joyEl.addEventListener('pointerup',joyEnd);joyEl.addEventListener('pointercancel',joyEnd);
 
 function pick(w){
- let best=null,bd=9;
- for(const a of A){const d=Math.hypot(a.x-w.x,a.y-6-w.y);if(d<bd){bd=d;best=a.b;}}
+ let best=null,bd=9;lastPickCont=null;
+ for(const a of A){const d=Math.hypot(a.x-w.x,a.y-6-w.y);if(d<bd){bd=d;best=a.b;lastPickCont=a.cont||null;}}
  if(best)return best;
  for(const b of B){if(w.x>=b.x-4&&w.x<=b.x+b.w+4&&w.y>=b.y-4&&w.y<=b.y+b.h+4)return b;}
  if(((w.x-POND.cx)/POND.rx)**2+((w.y-POND.cy)/POND.ry)**2<1)return B[8];
@@ -821,19 +841,24 @@ function pick(w){
  const f=ENTRYFIX;if(!PLOTS.some(p=>!p.unlocked)&&w.x>=f.x-4&&w.x<=f.x+f.w+4&&w.y>=f.y-6&&w.y<=f.y+f.h+6)return f;
  return null;
 }
-function clickAt(sx,sy){const w=toWorld(sx,sy);let b=pick(w);if(!b&&isTouch){let bd=18;for(const a of A){const d=Math.hypot(a.x-w.x,a.y-6-w.y);if(d<bd){bd=d;b=a.b;}}}select(b);}
+function clickAt(sx,sy){const w=toWorld(sx,sy);let b=pick(w);if(!b&&isTouch){let bd=18;for(const a of A){const d=Math.hypot(a.x-w.x,a.y-6-w.y);if(d<bd){bd=d;b=a.b;lastPickCont=a.cont||null;}}}select(b);}
+let selCont=null,lastPickCont=null;
+const visited=new Set();
 function select(b){
  if(b&&b.type==='plot'){sel=null;renderInfo(true);
   if(b===entryTarget())openNotes(null);
   else if(b.unlocked&&b.idea)openNotes(b.idea.id);
   else toast('🔒 Terreno bloqueado. Plante uma ideia no + para liberar o próximo.');
   return;}
- sel=b;renderInfo(true);}
+ sel=b;selCont=b&&b.conts&&lastPickCont&&b.conts.includes(lastPickCont)?lastPickCont:null;lastPickCont=null;
+ if(live&&b&&b.conts&&!visited.has(b.id)){visited.add(b.id);quest('visit');}
+ const lg=document.getElementById('i-logs');if(lg)lg.classList.add('hidden');
+ renderInfo(true);}
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();
  if(notesOpen){if(k==='escape')closeNotes();return;}
  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
  keys[k]=true;if(e.shiftKey)keys.shift=true;
- if(k==='e'){let best=null,bd=60;B.concat(PLOTS,PLOTS.some(p=>!p.unlocked)?[]:[ENTRYFIX]).forEach(b=>{const d=Math.hypot(b.x+b.w/2-P.x,b.y+b.h-P.y);if(d<bd){bd=d;best=b;}});select(best);if(!best)toast('Nada por perto para interagir.');}
+ if(k==='e'){let best=null,bd=60;B.concat(PLOTS,PLOTS.some(p=>!p.unlocked)?[]:[ENTRYFIX]).forEach(b=>{const d=Math.hypot(b.x+b.w/2-P.x,b.y+b.h-P.y);if(d<bd){bd=d;best=b;}});lastPickCont=null;select(best);if(!best)toast('Nada por perto para interagir.');}
  if(k==='f')follow=true;
  if(k==='n'){nightMode=nightMode==='auto'?'day':nightMode==='day'?'night':'auto';toast('🌗 Modo: '+({auto:'automático (hora real)',day:'sempre dia',night:'sempre noite'})[nightMode]);}
  if(k==='+'||k==='=')stepZoom(1.3);if(k==='-'||k==='_')stepZoom(1/1.3);
@@ -848,7 +873,12 @@ const hb=document.getElementById('hotbar');
 ACTS.forEach((a,i)=>{const d=document.createElement('div');d.className='slot';d.innerHTML=`<span>${i+1}</span>${a.i}<small>${a.n}</small>`;d.onclick=()=>act(i+1);hb.appendChild(d);});
 const isSvc=b=>b&&(b.animal||b.type==='mill');
 function act(n){
- if(n===1){let best=null,bd=60;B.concat(PLOTS,PLOTS.some(p=>!p.unlocked)?[]:[ENTRYFIX]).forEach(b=>{const d=Math.hypot(b.x+b.w/2-P.x,b.y+b.h-P.y);if(d<bd){bd=d;best=b;}});select(best||sel);if(!best&&!sel)toast('Toque num bicho ou prédio.');return;}
+ if(live&&n>=4)return toast('🔧 Essa ação ainda não está ligada ao servidor.');
+ if(live&&(n===2||n===3)){
+  const c=selCont||(sel&&sel.conts&&sel.conts.length===1?sel.conts[0]:null);
+  if(!c)return toast('Toque no bichinho (ou na linha dele) para escolher o container.');
+  return n===2?restartCont(c):showLogs(c);}
+ if(n===1){let best=null,bd=60;B.concat(PLOTS,PLOTS.some(p=>!p.unlocked)?[]:[ENTRYFIX]).forEach(b=>{const d=Math.hypot(b.x+b.w/2-P.x,b.y+b.h-P.y);if(d<bd){bd=d;best=b;}});lastPickCont=null;select(best||sel);if(!best&&!sel)toast('Toque num bicho ou prédio.');return;}
  if(n===2){if(!isSvc(sel))return toast('Selecione um serviço (bicho ou prédio) para reiniciar.');restart(sel);return;}
  if(n===3){if(!sel||!isSvc(sel))return toast('Selecione um serviço para ver os logs.');
   toast('📜 '+sel.name+': '+(sel.state==='up'?'INFO started · healthcheck ok · sem erros (24h)':'ERROR container exited (code 137)'));return;}
@@ -868,12 +898,15 @@ function renderInfo(full){
  if(sel.type==='house')h=bar('⚡ CPU',S.cpu,'#e67e22')+bar('🧠 RAM',S.ram,'#3498db')+bar('🥕 Disco',S.dsk,'#8d5e3b')+`<div style="font-size:11px">🦆 Rede ${Math.round(S.net)} Mb/s</div>`;
  else if(sel.type==='field')h=bar('🥕 Disco usado',S.dsk,'#8d5e3b')+`<div style="font-size:11px">${S.dsk>85?'⚠️ Horta lotada! Use 🧹':'Tudo sob controle.'}</div>`;
  else if(sel.type==='pond')h=`<div style="font-size:12px">🦆 ${Math.round(S.net)} Mb/s agora</div>`;
+ else if(live&&sel.conts){
+  const rows=sel.conts.map(c=>`<div class="crow${c===selCont?' on':''}" data-n="${esc(c.name)}">${c.busy?'🟡':c.ok?'🟢':'🔴'} <b>${esc(c.name)}</b><small>${c.ok?(c.cpu!=null?c.cpu+'% CPU · '+(c.mem_mb||0)+' MB':''):(c.health==='unhealthy'?'não saudável':esc(c.state))}</small></div>`).join('');
+  h=(rows||'<div style="font-size:12px">Nenhum container neste prédio.</div>')+(selCont?`<div style="font-size:11px;margin-top:4px">${esc(selCont.status||'')}</div>`:'');}
  else{const st={up:'🟢 Online',down:'🔴 Fora do ar',restarting:'🟡 Reiniciando'}[sel.state];
   const days=Math.floor((Date.now()-sel.since)/86400000);
   h=`<div style="font-size:12px;margin-bottom:4px">${st} · ${days}d de uptime</div>`+bar('⚡ CPU',sel.cpu,'#e67e22')+bar('🧠 RAM',sel.ram,'#3498db');}
- document.getElementById('i-body').innerHTML=h;
+ const bodyEl=document.getElementById('i-body');if(bodyEl.dataset.h!==h){bodyEl.innerHTML=h;bodyEl.dataset.h=h;}
  if(full){const bt=document.getElementById('i-btns');
-  bt.innerHTML=isSvc(sel)?'<button onclick="act(2)">🔄 Reiniciar</button><button onclick="act(3)">📜 Logs</button><button onclick="act(5)">⬆️ Atualizar</button>':sel.type==='house'?'<button onclick="act(4)">💾 Backup</button><button onclick="act(6)">🧹 Limpar</button>':sel.type==='field'?'<button onclick="act(6)">🧹 Limpar disco</button>':'';
+  bt.innerHTML=isSvc(sel)?(live?'<button onclick="act(2)">🔄 Reiniciar</button><button onclick="act(3)">📜 Logs</button>':'<button onclick="act(2)">🔄 Reiniciar</button><button onclick="act(3)">📜 Logs</button><button onclick="act(5)">⬆️ Atualizar</button>'):sel.type==='house'?'<button onclick="act(4)">💾 Backup</button><button onclick="act(6)">🧹 Limpar</button>':sel.type==='field'?'<button onclick="act(6)">🧹 Limpar disco</button>':'';
   bt.innerHTML+='<button onclick="select(null)">✖</button>';}
 }
 function hud(){
@@ -881,16 +914,18 @@ function hud(){
  const $=id=>document.getElementById(id);
  $('s-lv').textContent=lv;$('s-coin').textContent=coins;$('s-up').textContent=d+'d '+h+'h';
  $('s-xp').style.width=(xp/need()*100)+'%';
- $('s-cpu').textContent=Math.round(S.cpu);$('s-ram').textContent=Math.round(S.ram);$('s-dsk').textContent=Math.round(S.dsk);$('s-net').textContent=Math.round(S.net);
+ const hv=(v,k)=>live&&hostNull[k]?'–':Math.round(v);
+ $('s-cpu').textContent=hv(S.cpu,'cpu');$('s-ram').textContent=hv(S.ram,'ram');$('s-dsk').textContent=hv(S.dsk,'disk');$('s-net').textContent=live?(hostNull.net?'–':(S.net<10?S.net.toFixed(1):Math.round(S.net))):Math.round(S.net);
+ $('livechip').textContent=live?(dockerBad?'🟡 sem Docker':'🟢 ao vivo'):(cfg.url&&cfg.token?'🔴 sem conexão':'🎮 demo');
  $('b-cpu').style.width=S.cpu+'%';$('b-ram').style.width=S.ram+'%';
- $('qlist').innerHTML=quests.map(q=>`<div class="q ${q.done?'done':''}">${q.done?'☑':'☐'} ${q.t}${q.goal?` (${Math.min(q.n,q.goal)}/${q.goal})`:''}</div>`).join('');
+ $('qlist').innerHTML=quests.filter(questOn).map(q=>`<div class="q ${q.done?'done':''}">${q.done?'☑':'☐'} ${q.t}${q.goal?` (${Math.min(q.n,q.goal)}/${q.goal})`:''}</div>`).join('');
  renderInfo(false);
 }
-setInterval(hud,500);hud();
-setInterval(()=>{S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
+setInterval(hud,500);
+setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.4.0',APP_DATE='24/10/2026';
+const APP_VERSION='1.5.0',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
@@ -902,7 +937,9 @@ function setStat(k,extra){const m={ok:'☁️✅ Sincronizado com o servidor',lo
 async function api(path,method='GET',body){
  const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),8000);
  try{const r=await fetch(cfg.url.replace(/\/+$/,'')+path,{method,signal:ctl.signal,headers:{'Authorization':'Bearer '+cfg.token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
-  if(!r.ok)throw new Error('HTTP '+r.status);return r.status===204?null:await r.json();}
+  if(!r.ok){let m='HTTP '+r.status;try{const j=await r.json();if(j&&j.error)m=j.error;}catch(_){}const er=new Error(m);er.status=r.status;throw er;}
+  if(r.status===204)return null;
+  return (r.headers.get('Content-Type')||'').includes('json')?await r.json():await r.text();}
  finally{clearTimeout(to);}
 }
 async function syncNotes(){
@@ -950,18 +987,108 @@ $n('nx').onclick=closeNotes;
 $n('notes').addEventListener('pointerdown',e=>{if(e.target===$n('notes'))closeNotes();});
 $n('nsave').onclick=saveNote;$n('nnew').onclick=newNote;$n('ndel').onclick=delNote;
 $n('ncfg').onclick=()=>$n('ncfgbox').classList.toggle('hidden');
-$n('csave').onclick=()=>{cfg={url:$n('cfgurl').value.trim().replace(/\/+$/,''),token:$n('cfgtoken').value.trim()};
- try{localStorage.setItem(CK,JSON.stringify(cfg));}catch(e){}toast('⚙️ Servidor salvo');syncNotes();};
-$n('ctest').onclick=async()=>{cfg={url:$n('cfgurl').value.trim().replace(/\/+$/,''),token:$n('cfgtoken').value.trim()};
+const readCfg=()=>({url:$n('cfgurl').value.trim().replace(/\/+$/,''),token:$n('cfgtoken').value.trim()});
+const netMsg=e=>e.name==='AbortError'?'tempo esgotado':e instanceof TypeError?'não consegui alcançar o servidor. O endereço precisa ser HTTPS e o Tailscale precisa estar ligado.':e.message;
+$n('csave').onclick=()=>{cfg=readCfg();
+ try{localStorage.setItem(CK,JSON.stringify(cfg));}catch(e){}toast('⚙️ Servidor salvo');syncNotes();pollLive();};
+$n('ctest').onclick=async()=>{cfg=readCfg();
  if(!cfg.url||!cfg.token){toast('Preencha a URL e o token.');return;}
- try{const r=await api('/notes');toast('✅ Conectado! '+r.length+' ideia(s) no servidor.');}catch(e){toast('❌ Falhou: '+(e.name==='AbortError'?'tempo esgotado':e.message));}};
+ try{const r=await api('/status');toast('✅ Conectado! '+(r.containers?r.containers.length+' container(s) lidos.':'servidor ok, mas o Docker não respondeu.'));}catch(e){toast('❌ Falhou: '+netMsg(e));}};
 // versão e atualização forçada
 $n('ver').textContent='🏷️ v'+APP_VERSION+' ↻';$n('ver').title='Versão '+APP_VERSION+' ('+APP_DATE+'). Toque para buscar a versão mais nova.';
 $n('ver').onclick=async()=>{toast('🔄 Buscando versão nova…');
  try{const rs=navigator.serviceWorker?await navigator.serviceWorker.getRegistrations():[];for(const r of rs)await r.unregister();for(const k of await caches.keys())await caches.delete(k);}catch(e){}
  location.reload();};
 
+/* ---------- servidor ao vivo ---------- */
+const hostNull={cpu:true,ram:true,disk:true,net:true};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DEMO_B=B.map(b=>({name:b.name,role:b.role}));
+const GB={dns:4,monitor:6,security:5,db:3,agent:2,app:1};   // grupo -> índice do prédio em B
+const LIVE_B={1:['Apps','Celeiro dos seus apps'],2:['Agentes','Galinheiro dos agentes'],3:['Bancos de dados','Chiqueiro dos bancos de dados'],
+ 4:['DNS','Casinha do cão de guarda (DNS)'],5:['Segurança','Cofre da segurança'],6:['Monitoramento','Moinho do monitoramento']};
+let restartOn=false,pollBusy=false,dockerNoted=false,dockerBad=false,liveFail=0,liveSnap=false;
+function updateBuildings(){
+ for(let i=1;i<=6;i++){const b=B[i],cs=[...CONTS.values()].filter(c=>GB[c.group]===i);
+  b.conts=cs;
+  b.state=cs.some(c=>c.busy)?'restarting':cs.some(c=>!c.ok)?'down':'up';
+  b.cpu=cs.length?cs.reduce((s,c)=>s+(c.cpu||0),0)/cs.length:0;
+  b.ram=cs.length?cs.reduce((s,c)=>s+(c.mem_pct||0),0)/cs.length:0;
+  b.name=LIVE_B[i][0]+(cs.length?'':dockerBad?' (sem leitura)':' (vazio)');
+  b.role=LIVE_B[i][1]+(cs.length?'':dockerBad?': não consegui ler o Docker':': nenhum container nesta categoria');}
+}
+function restoreDemo(){for(let i=1;i<=6;i++){const b=B[i];b.name=DEMO_B[i].name;b.role=DEMO_B[i].role;b.conts=null;b.state='up';b.cpu=rr(5,40);b.cpuT=b.cpu;}}
+function syncContainers(list){
+ const seen=new Set();let changed=false;
+ for(const c of list){seen.add(c.name);
+  const ok=c.state==='running'&&c.health!=='unhealthy';
+  let o=CONTS.get(c.name);
+  if(!o){o={name:c.name,group:c.group,ok};CONTS.set(c.name,o);changed=true;}
+  else{
+   if(o.group!==c.group){o.group=c.group;changed=true;}
+   if(o.ok&&!ok&&!o.busy)toast('⚠️ '+c.name+' caiu!');
+   if(!o.ok&&ok&&!o.busy)addXP(30,'✅ '+c.name+' voltou!');
+  }
+  if(o.busy&&(Date.now()-o.busyAt>30000||(ok&&Date.now()-o.busyAt>3000))){o.busy=false;if(ok)addXP(20,'🔄 '+c.name+' reiniciado!');}
+  Object.assign(o,{ok,state:c.state,health:c.health,status:c.status,cpu:c.cpu,mem_mb:c.mem_mb,mem_pct:c.mem_pct});
+ }
+ for(const n of [...CONTS.keys()])if(!seen.has(n)){CONTS.delete(n);changed=true;}
+ updateBuildings();
+ if(changed)buildAnimals();
+ if(selCont&&!CONTS.has(selCont.name))selCont=null;
+}
+function applyLive(d){
+ const h=d.host||{};
+ hostNull.cpu=h.cpu==null;hostNull.ram=h.ram==null;hostNull.disk=h.disk==null;hostNull.net=h.net_mbps==null;
+ if(h.cpu!=null)S.cpuT=h.cpu;
+ if(h.ram!=null)S.ramT=h.ram;
+ if(h.disk!=null)S.dsk=h.disk;
+ if(h.net_mbps!=null)S.netT=h.net_mbps;
+ if(h.uptime!=null){S.upBase=h.uptime;S.t0=Date.now();}
+ if(liveSnap){liveSnap=false;S.cpu=S.cpuT;S.ram=S.ramT;S.net=S.netT;}
+ restartOn=!!d.restart_enabled;
+ dockerBad=!d.containers;
+ if(d.containers){dockerNoted=false;syncContainers(d.containers);}
+ else{updateBuildings();if(!dockerNoted){dockerNoted=true;toast('🐳 Não consegui ler os containers: '+(d.docker_error||'erro do Docker'));}}
+}
+function setLive(v){
+ if(v===live)return;
+ live=v;
+ document.querySelectorAll('.slot').forEach((s,i)=>s.classList.toggle('off',live&&i>=3));
+ if(live){liveSnap=true;toast('🟢 Conectado ao servidor!');updateBuildings();}
+ else{toast('🔴 Perdi a conexão com o servidor. Voltando à demonstração.');CONTS.clear();restoreDemo();}
+ buildAnimals();selCont=null;sel=null;renderInfo(true);
+}
+async function pollLive(){
+ if(!cfg.url||!cfg.token){if(live)setLive(false);return;}
+ if(pollBusy)return;pollBusy=true;
+ try{const d=await api('/status');liveFail=0;setLive(true);applyLive(d);}
+ catch(e){if(++liveFail>=2&&live)setLive(false);}
+ finally{pollBusy=false;}
+}
+async function restartCont(c){
+ if(!restartOn)return toast('🔒 O servidor está só em modo observação (ENABLE_RESTART desligado).');
+ if(!confirm('Reiniciar '+c.name+'?'))return;
+ try{await api('/containers/'+encodeURIComponent(c.name)+'/restart','POST');
+  c.busy=true;c.busyAt=Date.now();updateBuildings();toast('🔄 Reiniciando '+c.name+'…');
+  setTimeout(pollLive,2500);setTimeout(pollLive,7000);renderInfo(true);}
+ catch(e){toast('❌ '+e.message);}
+}
+async function showLogs(c){
+ const el=$n('i-logs');el.classList.remove('hidden');el.textContent='Carregando logs de '+c.name+'…';
+ try{const t=await api('/containers/'+encodeURIComponent(c.name)+'/logs?tail=20');el.textContent=String(t||'').trim()||'(sem logs)';el.scrollTop=el.scrollHeight;}
+ catch(e){el.textContent='Não consegui ler os logs: '+e.message;}
+}
+function pickCont(name){selCont=CONTS.get(name)||null;renderInfo(true);}
+$n('i-body').addEventListener('click',e=>{const r=e.target.closest('.crow');if(r)pickCont(r.dataset.n);});
+$n('cfgbtn').onclick=()=>{openNotes(null);$n('ncfgbox').classList.remove('hidden');};
+setInterval(()=>{if(document.visibilityState==='visible')pollLive();},5000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pollLive();else saveGame();});
+loadGame();setInterval(saveGame,5000);
+
 syncPlots(true);
+pollLive();
+hud();
 let last=performance.now();
 function loop(ts){
  requestAnimationFrame(loop);

@@ -54,6 +54,16 @@ Cada terreno mostra a **fase** da ideia, que você muda na tela de ideias:
 
 Tocando num terreno liberado você abre a ideia dele. As ideias ficam no aparelho e, se você configurar o servidor de notas (⚙️ na tela de ideias), são guardadas como arquivos `.md` numa pasta do homeserver. Veja [`notes-server/`](notes-server/README.md).
 
+## Servidor ao vivo
+
+Com o servidor da fazenda ligado ([`notes-server/`](notes-server/README.md)), o app lê o seu homeserver de verdade:
+
+- **CPU, RAM, disco e rede** do painel e da fazenda (horta = disco, lago = rede, fumaça da casa = CPU).
+- **Cada container Docker vira um bichinho** no prédio do tipo dele (DNS, agentes, apps, bancos de dados, segurança, monitoramento).
+- Container parado ou não saudável deixa o bichinho doente 🤒. Tocando nele você vê CPU, memória e os **logs**.
+- O painel mostra `🟢 ao vivo`, `🔴 sem conexão` ou `🎮 demonstração`. Sem servidor configurado (⚙️), o app roda com dados simulados.
+- Na versão ao vivo, as ações "Backup", "Atualizar" e "Limpar" ficam desativadas, porque ainda não fazem nada de verdade no servidor.
+
 ## Versão
 
 A versão aparece no canto do painel de status (ex.: `v1.3.0 ↻`). Tocando nela o app apaga o cache e recarrega, buscando a versão mais nova.
