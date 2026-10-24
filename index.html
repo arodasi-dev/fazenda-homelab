@@ -100,6 +100,7 @@ body.touch #help{display:none}
   <div class="bar hide-s"><i id="b-ram" style="background:#3498db"></i></div>
   <div style="font-size:11px">🥕 <span id="s-dsk"></span>% · 🦆 <span id="s-net"></span> Mb/s</div>
   <div id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</div>
+  <div id="dbg" style="font-size:9px;opacity:.6;font-family:monospace"></div>
 </div>
 
 <div id="qbtn">📜</div>
@@ -144,6 +145,7 @@ const WW=1024,WH=640;
 const isTouch=matchMedia('(pointer:coarse)').matches||'ontouchstart' in window;
 if(isTouch)document.body.classList.add('touch');
 if(!ctx.roundRect)ctx.roundRect=function(x,y,w,h){this.rect(x,y,w,h);};
+let lastErr='',errN=0;
 let dpr=Math.min(2,Math.max(1,window.devicePixelRatio||1)),VW=0,VH=0;
 function resize(){VW=innerWidth;VH=innerHeight;cv.width=Math.round(VW*dpr);cv.height=Math.round(VH*dpr);cv.style.width=VW+'px';cv.style.height=VH+'px';}
 addEventListener('resize',resize);resize();
@@ -774,6 +776,7 @@ function renderInfo(full){
   bt.innerHTML+='<button onclick="select(null)">✖</button>';}
 }
 function hud(){
+ document.getElementById('dbg').textContent=`z${zoom.toFixed(2)} s${evenS()} ${VW}x${VH} d${dpr} c${cv.width}x${cv.height}`+(lastErr?' E:'+lastErr:'');
  const up=S.upBase+(Date.now()-S.t0)/1000,d=Math.floor(up/86400),h=Math.floor(up%86400/3600);
  const $=id=>document.getElementById(id);
  $('s-lv').textContent=lv;$('s-coin').textContent=coins;$('s-up').textContent=d+'d '+h+'h';
@@ -787,7 +790,7 @@ setInterval(hud,500);hud();
 setInterval(()=>{S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.3.0',APP_DATE='24/10/2026';
+const APP_VERSION='1.3.1',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
@@ -857,7 +860,18 @@ $n('ver').onclick=async()=>{toast('🔄 Buscando versão nova…');
  location.reload();};
 
 let last=performance.now();
-function loop(ts){const dt=Math.min(0.05,(ts-last)/1000);last=ts;const t=ts/1000;update(dt,t);draw(t);requestAnimationFrame(loop);}
+function loop(ts){
+ requestAnimationFrame(loop);
+ const dt=Math.min(0.05,(ts-last)/1000);last=ts;const t=ts/1000;
+ try{
+  if(Math.abs(innerWidth-VW)>1||Math.abs(innerHeight-VH)>1)resize();
+  update(dt,t);draw(t);
+ }catch(e){
+  lastErr=(e&&e.message||String(e)).slice(0,60);
+  if(++errN===1||errN%120===0)toast('⚠️ erro: '+lastErr);
+  if(errN%30===1){zoom=zoomT=3;follow=true;ctx.setTransform(1,0,0,1,0,0);}
+ }
+}
 requestAnimationFrame(loop);
 setTimeout(()=>toast(isTouch?'👋 Bem-vinda! Use o joystick e toque nos bichos.':'👋 Bem-vinda! Ande com WASD e clique nos bichos.'),600);
 if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
