@@ -19,6 +19,11 @@ Variáveis de ambiente:
                     (padrão: fazenda-notas,fazenda-docker-proxy)
   DISK_PATH         caminho usado para medir o disco (padrão: /)
   STATS_EVERY       segundos entre leituras (padrão: 5)
+
+Crédito da API da Anthropic (opcional; só funciona em contas de organização):
+  ANTHROPIC_ADMIN_KEY  chave de administrador (sk-ant-admin...). Fica só aqui, nunca vai para o app.
+  CREDIT_TOTAL_USD     quanto de crédito você comprou (ex.: 50)
+  CREDIT_SINCE         data da compra, AAAA-MM-DD: o gasto é somado desde esse dia
 """
 import hmac
 import http.client
@@ -30,13 +35,15 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, unquote, quote, parse_qs
 
-VERSION = "1.5.0"
+VERSION = "1.8.0"
 NOTES_DIR = Path(os.environ.get("NOTES_DIR", "./notas"))
 TOKEN = os.environ.get("NOTES_TOKEN", "")
 ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGIN", "https://arodasi-dev.github.io").split(",") if o.strip()]
@@ -47,6 +54,11 @@ ENABLE_RESTART = os.environ.get("ENABLE_RESTART", "0") == "1"
 HIDE = {x.strip() for x in os.environ.get("HIDE_CONTAINERS", "fazenda-notas,fazenda-docker-proxy").split(",") if x.strip()}
 DISK_PATH = os.environ.get("DISK_PATH", "/")
 STATS_EVERY = max(1.0, float(os.environ.get("STATS_EVERY", "5")))
+ADMIN_KEY = os.environ.get("ANTHROPIC_ADMIN_KEY", "").strip()
+CREDIT_TOTAL = float(os.environ.get("CREDIT_TOTAL_USD", "0") or 0)
+CREDIT_SINCE = os.environ.get("CREDIT_SINCE", "").strip()
+API_BASE = os.environ.get("ANTHROPIC_API_BASE", "https://api.anthropic.com").rstrip("/")
+CREDIT_TTL = 300  # a API de custos aceita ~1 consulta por minuto; 5 min sobra
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -283,6 +295,67 @@ def stats_loop():
         time.sleep(max(0.5, STATS_EVERY - (time.time() - t0)))
 
 
+# ---------------------------------------------------------------- crédito (API de custos da Anthropic)
+CREDIT = {"t": 0.0, "data": None}
+CREDIT_LOCK = threading.Lock()
+SINCE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def fetch_spend(since: str):
+    """Soma o custo (em dólares) desde `since`. Devolve (total, mês atual)."""
+    start = f"{since}T00:00:00Z"
+    end = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat() + "T00:00:00Z"
+    this_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    total = month = 0.0
+    page = None
+    for _ in range(60):
+        q = f"starting_at={start}&ending_at={end}&bucket_width=1d&limit=31" + (f"&page={page}" if page else "")
+        req = urllib.request.Request(f"{API_BASE}/v1/organizations/cost_report?{q}", headers={
+            "x-api-key": ADMIN_KEY, "anthropic-version": "2023-06-01",
+            "User-Agent": "FazendaHomelab/" + VERSION})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        for bucket in data.get("data", []):
+            for res in bucket.get("results", []):
+                if res.get("currency", "USD") != "USD":
+                    continue
+                cents = float(res.get("amount", "0"))
+                total += cents
+                if str(bucket.get("starting_at", ""))[:7] == this_month:
+                    month += cents
+        if not data.get("has_more"):
+            break
+        page = data.get("next_page")
+        if not page:
+            break
+    return round(total / 100, 2), round(month / 100, 2)
+
+
+def credit_status():
+    if not ADMIN_KEY:
+        return {"enabled": False}
+    with CREDIT_LOCK:
+        if CREDIT["data"] is not None and time.time() - CREDIT["t"] < CREDIT_TTL:
+            return CREDIT["data"]
+        prev = CREDIT["data"] or {"enabled": True}
+        if not SINCE_RE.match(CREDIT_SINCE):
+            data = {"enabled": True, "error": "defina CREDIT_SINCE (AAAA-MM-DD) no .env"}
+        else:
+            try:
+                spent, month = fetch_spend(CREDIT_SINCE)
+                data = {"enabled": True, "since": CREDIT_SINCE, "spent": spent, "month": month, "t": now_iso(),
+                        "total": CREDIT_TOTAL or None,
+                        "remaining": round(CREDIT_TOTAL - spent, 2) if CREDIT_TOTAL else None}
+            except urllib.error.HTTPError as e:   # nunca repete o corpo da resposta (poderia citar a chave)
+                data = dict(prev, error=f"a Anthropic respondeu HTTP {e.code}"
+                            + (" (a chave precisa ser de administrador de uma organização)" if e.code in (401, 403) else ""))
+            except Exception as e:
+                data = dict(prev, error="não consegui falar com a Anthropic: " + type(e).__name__)
+        CREDIT["data"] = data
+        CREDIT["t"] = time.time() if "error" not in data else time.time() - CREDIT_TTL + 60  # erro: tenta de novo em 1 min
+        return data
+
+
 def demux_logs(b: bytes) -> str:
     if len(b) < 8 or b[0] not in (0, 1, 2) or b[1:4] != b"\0\0\0":
         return b.decode("utf-8", "replace")
@@ -366,6 +439,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"t": snap["t"], "host": snap["host"], "containers": cs,
                                     "docker_error": snap["docker_error"], "restart_enabled": ENABLE_RESTART,
                                     "version": VERSION})
+        if parts == ["credit"]:
+            return self._send(200, credit_status())
         if len(parts) == 3 and parts[0] == "containers" and parts[2] == "logs":
             c = known_container(parts[1])
             if not c:

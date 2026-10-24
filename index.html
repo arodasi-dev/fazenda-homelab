@@ -109,6 +109,7 @@ body:not(.config) .adv{display:none!important}   /* configuração do servidor: 
   <div class="bar hide-s"><i id="b-cpu" style="background:#e67e22"></i></div>
   <div class="bar hide-s"><i id="b-ram" style="background:#3498db"></i></div>
   <div style="font-size:11px">🥕 <span id="s-dsk"></span>% · 🦆 <span id="s-net"></span> Mb/s</div>
+  <div id="credit" style="font-size:11px;display:none;cursor:pointer"></div>
   <div style="font-size:10px;margin-top:2px;white-space:nowrap"><span id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</span>&nbsp;<span id="livechip"></span>&nbsp;<span id="cfgbtn" class="adv" title="Servidor" style="cursor:pointer;font-size:12px">⚙️</span></div></div>
 
 <div id="qbtn">📜</div>
@@ -1026,6 +1027,15 @@ function hud(){
  $('s-xp').style.width=(xp/need()*100)+'%';
  const hv=(v,k)=>live&&hostNull[k]?'–':Math.round(v);
  $('s-cpu').textContent=hv(S.cpu,'cpu');$('s-ram').textContent=hv(S.ram,'ram');$('s-dsk').textContent=hv(S.dsk,'disk');$('s-net').textContent=live?(hostNull.net?'–':(S.net<10?S.net.toFixed(1):Math.round(S.net))):Math.round(S.net);
+ const cr=live&&creditData&&creditData.enabled?creditData:null,ce=$('credit');
+ ce.style.display=cr?'block':'none';
+ if(cr){const usd=v=>'US$ '+v.toFixed(2).replace('.',',');
+  let t,col='';
+  if(cr.remaining!=null){t='💳 ~'+usd(cr.remaining)+' restantes';const f=cr.remaining/cr.total;col=f<0.1?'#c0392b':f<0.3?'#d68910':'';}
+  else if(cr.spent!=null)t='💳 gasto '+usd(cr.spent)+' (mês '+usd(cr.month)+')';
+  else t='💳 sem leitura';
+  ce.textContent=t;ce.style.color=col;
+  ce.title=cr.error?('Erro: '+cr.error):('Estimativa: comprado '+(cr.total!=null?usd(cr.total):'?')+' − gasto '+usd(cr.spent||0)+' desde '+cr.since+'. Priority Tier e impostos não entram.');}
  $('livechip').textContent=live?(dockerBad?'🟡 sem Docker':'🟢 ao vivo'):(cfg.url&&cfg.token?'🔴 sem conexão':'🎮 demo');
  $('b-cpu').style.width=S.cpu+'%';$('b-ram').style.width=S.ram+'%';
  $('qlist').innerHTML=quests.filter(questOn).map(q=>`<div class="q ${q.done?'done':''}">${q.done?'☑':'☐'} ${q.t}${q.goal?` (${Math.min(q.n,q.goal)}/${q.goal})`:''}</div>`).join('');
@@ -1035,7 +1045,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.7.0',APP_DATE='24/10/2026';
+const APP_VERSION='1.8.0',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
@@ -1165,10 +1175,10 @@ function setLive(v){
  if(v===live)return;
  live=v;
  document.querySelectorAll('.slot').forEach((s,i)=>s.classList.toggle('off',live&&i>=3));
- if(live){liveSnap=true;toast('🟢 Conectado ao servidor!');updateBuildings();}
+ if(live){liveSnap=true;toast('🟢 Conectado ao servidor!');updateBuildings();pollCredit();}
  else{toast('🔴 Perdi a conexão com o servidor. Voltando à demonstração.');CONTS.clear();restoreDemo();}
  if(live)layoutLive();else restoreDemoYards();
- buildAnimals();selCont=null;sel=null;proxT=null;autoOpen=false;renderInfo(true);
+ buildAnimals();selCont=null;sel=null;proxT=null;autoOpen=false;if(!live)creditData=null;renderInfo(true);
 }
 async function pollLive(){
  if(!cfg.url||!cfg.token){if(live)setLive(false);return;}
@@ -1190,6 +1200,15 @@ async function showLogs(c){
  try{const t=await api('/containers/'+encodeURIComponent(c.name)+'/logs?tail=20');el.textContent=String(t||'').trim()||'(sem logs)';el.scrollTop=el.scrollHeight;}
  catch(e){el.textContent='Não consegui ler os logs: '+e.message;}
 }
+// crédito da API da Anthropic (o servidor soma o gasto; o saldo é uma estimativa)
+let creditData=null,creditBusy=false;
+async function pollCredit(){
+ if(!live||creditBusy)return;creditBusy=true;
+ try{creditData=await api('/credit');}catch(e){setTimeout(pollCredit,30000);}
+ finally{creditBusy=false;}
+}
+$n('credit').onclick=()=>{if(creditData)toast($n('credit').title);};
+setInterval(()=>{if(document.visibilityState==='visible')pollCredit();},300000);
 function pickCont(name){selCont=CONTS.get(name)||null;renderInfo(true);}
 $n('i-body').addEventListener('click',e=>{const r=e.target.closest('.crow');if(r)pickCont(r.dataset.n);});
 $n('cfgbtn').onclick=()=>{openNotes(null);$n('ncfgbox').classList.remove('hidden');};

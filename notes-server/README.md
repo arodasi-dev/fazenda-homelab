@@ -68,6 +68,30 @@ Por padrão a fazenda **só observa**. Para reiniciar um container tocando nele,
 
 Atenção: o docker-socket-proxy só aceita reinício com `POST=1`, e isso também permite a ele **criar containers**, o que na prática dá controle total do servidor para quem alcançar a porta `2375`. Ela só escuta em `127.0.0.1` e o servidor da fazenda exige o token, mas só ligue se aceitar esse risco.
 
+## Crédito da API da Anthropic (opcional)
+
+A Anthropic **não tem uma API que devolve o saldo restante**. O que existe é a [API de custos](https://platform.claude.com/docs/en/manage-claude/usage-cost-api), que informa quanto foi **gasto**. O servidor soma esse gasto desde a data da sua compra e o app mostra uma **estimativa**: `~US$ 35,00 restantes` (comprado − gasto).
+
+Para ligar:
+
+1. A conta precisa ser de **organização** (Console → Settings → Organization). A API de custos não existe para contas individuais.
+2. Crie uma **chave de administrador** (Console → Settings → Admin keys). Ela começa com `sk-ant-admin`.
+3. No `.env` do servidor, descomente e preencha:
+
+   ```
+   ANTHROPIC_ADMIN_KEY=sk-ant-admin01-...
+   CREDIT_TOTAL_USD=50
+   CREDIT_SINCE=2026-10-01
+   ```
+
+4. `docker compose up -d` de novo.
+
+Cuidados:
+
+- A chave de administrador tem **muito poder** sobre a organização (gerencia membros e chaves). Ela fica **só no `.env`** do servidor, nunca vai para o app nem para o GitHub. Deixe o arquivo só com você (`chmod 600 .env`) e revogue a chave no Console se achar que vazou.
+- O valor é uma estimativa: a API de custos não inclui o Priority Tier, e não considera impostos, créditos que expiram nem bônus. Confira de vez em quando no Console (Billing).
+- O servidor consulta a Anthropic no máximo a cada 5 minutos.
+
 ## Testes
 
 ```bash
@@ -84,6 +108,7 @@ Todas as rotas, menos `/health`, pedem `Authorization: Bearer <token>`.
 |---|---|---|
 | GET | `/health` | testa se está no ar |
 | GET | `/status` | host (CPU, RAM, disco, rede, uptime) e containers |
+| GET | `/credit` | gasto e saldo estimado da API da Anthropic (se configurado) |
 | GET | `/containers/<nome>/logs?tail=25` | últimas linhas de log |
 | POST | `/containers/<nome>/restart` | reinicia (só com `ENABLE_RESTART=1`) |
 | GET | `/notes` | lista todas as ideias |

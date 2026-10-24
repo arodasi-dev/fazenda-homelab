@@ -28,6 +28,10 @@ services:
       PORT: "8787"
       DOCKER_HOST: http://127.0.0.1:2375
       ENABLE_RESTART: ${ENABLE_RESTART:-0}
+      # crédito da API da Anthropic (opcional)
+      ANTHROPIC_ADMIN_KEY: ${ANTHROPIC_ADMIN_KEY:-}
+      CREDIT_TOTAL_USD: ${CREDIT_TOTAL_USD:-0}
+      CREDIT_SINCE: ${CREDIT_SINCE:-}
     volumes:
       - ./notas:/data
     depends_on:

@@ -205,4 +205,100 @@ try:
 finally:
     proc.terminate()
 
+# ---------- crédito: API de custos falsa da Anthropic ----------
+COST_CALLS = []
+COST_MODE = {"mode": "ok"}
+
+
+class FakeAnthropic(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        COST_CALLS.append((self.path, self.headers.get("x-api-key"), self.headers.get("anthropic-version")))
+        if COST_MODE["mode"] == "401":
+            self.send_response(401)
+            body = b'{"error":{"message":"invalid x-api-key sk-ant-admin01-test"}}'
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
+        this_month = time.strftime("%Y-%m", time.gmtime())
+        page2 = "page=P2" in self.path
+        if not page2:
+            data = {"data": [{"starting_at": "2020-01-01T00:00:00Z", "ending_at": "2020-01-02T00:00:00Z",
+                              "results": [{"amount": "1250.5", "currency": "USD"}, {"amount": "49.5", "currency": "USD"}]}],
+                    "has_more": True, "next_page": "P2"}
+        else:
+            data = {"data": [{"starting_at": this_month + "-01T00:00:00Z", "ending_at": this_month + "-02T00:00:00Z",
+                              "results": [{"amount": "200", "currency": "USD"}, {"amount": "999", "currency": "EUR"}]}],
+                    "has_more": False, "next_page": None}
+        b = json.dumps(data).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+
+fa = HTTPServer(("127.0.0.1", 0), FakeAnthropic)
+threading.Thread(target=fa.serve_forever, daemon=True).start()
+env2 = dict(env, PORT="8796", ANTHROPIC_ADMIN_KEY="sk-ant-admin01-test", CREDIT_TOTAL_USD="50", CREDIT_SINCE="2020-01-01",
+            ANTHROPIC_API_BASE=f"http://127.0.0.1:{fa.server_port}")
+proc = subprocess.Popen([sys.executable, os.path.join(HERE, "server.py")], env=env2, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+BASE = "http://127.0.0.1:8796"
+try:
+    for _ in range(40):
+        try:
+            if call("GET", "/health")[0] == 200:
+                break
+        except Exception:
+            time.sleep(0.25)
+    code, cr = call("GET", "/credit")
+    assert code == 200 and cr["enabled"] is True, cr
+    # (1250.5+49.5+200) centavos = 1500 -> US$ 15,00 gastos; sobram 35
+    assert cr["spent"] == 15.0 and cr["remaining"] == 35.0 and cr["total"] == 50.0 and cr["month"] == 2.0, cr
+    assert len(COST_CALLS) == 2 and "page=P2" in COST_CALLS[1][0], COST_CALLS      # paginou
+    assert all(c[1] == "sk-ant-admin01-test" and c[2] == "2023-06-01" for c in COST_CALLS)
+    assert "starting_at=2020-01-01T00:00:00Z" in COST_CALLS[0][0] and "limit=31" in COST_CALLS[0][0]
+    n = len(COST_CALLS)
+    assert call("GET", "/credit")[1]["spent"] == 15.0 and len(COST_CALLS) == n         # cache: não consulta de novo
+    assert call("GET", "/credit", headers={"Content-Type": "application/json"})[0] == 401   # exige token
+    assert "sk-ant" not in json.dumps(cr)
+    print("crédito ok")
+finally:
+    proc.terminate()
+
+COST_MODE["mode"] = "401"
+env2["PORT"] = "8795"
+proc = subprocess.Popen([sys.executable, os.path.join(HERE, "server.py")], env=env2, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+BASE = "http://127.0.0.1:8795"
+try:
+    for _ in range(40):
+        try:
+            if call("GET", "/health")[0] == 200:
+                break
+        except Exception:
+            time.sleep(0.25)
+    code, cr = call("GET", "/credit")
+    assert code == 200 and cr["enabled"] is True and "401" in cr["error"] and "sk-ant" not in json.dumps(cr), cr   # erro sem vazar a chave
+    print("crédito com erro ok")
+finally:
+    proc.terminate()
+
+env3 = dict(env, PORT="8794")
+env3.pop("ANTHROPIC_ADMIN_KEY", None)
+proc = subprocess.Popen([sys.executable, os.path.join(HERE, "server.py")], env=env3, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+BASE = "http://127.0.0.1:8794"
+try:
+    for _ in range(40):
+        try:
+            if call("GET", "/health")[0] == 200:
+                break
+        except Exception:
+            time.sleep(0.25)
+    assert call("GET", "/credit")[1] == {"enabled": False}
+    print("crédito desligado ok")
+finally:
+    proc.terminate()
+
 print("TUDO OK")
