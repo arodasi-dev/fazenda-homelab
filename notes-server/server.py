@@ -52,7 +52,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, unquote, quote, parse_qs
 
-VERSION = "1.9.1"
+VERSION = "1.11.0"
 NOTES_DIR = Path(os.environ.get("NOTES_DIR", "./notas"))
 TOKEN = os.environ.get("NOTES_TOKEN", "")
 ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGIN", "https://arodasi-dev.github.io").split(",") if o.strip()]
@@ -365,9 +365,11 @@ def secretaria_gasto():
     out = {"enabled": True, "month": month, "calls": calls, "tokens_in": tin, "tokens_out": tout,
            "cost": round(cost, 4), "budget": SEC_BUDGET, "active": cost < SEC_BUDGET}
     if SEC_CREDIT > 0:  # saldo estimado: crédito comprado - gasto acumulado desde o mês da compra
-        spent = sum(i * SEC_PRICE_IN / 1e6 + o * SEC_PRICE_OUT / 1e6 for m, i, o in rows if m >= SEC_CREDIT_FROM)
+        months = sorted((m, i * SEC_PRICE_IN / 1e6 + o * SEC_PRICE_OUT / 1e6) for m, i, o in rows if m >= SEC_CREDIT_FROM)
+        spent = sum(c for _, c in months)
         out.update(credit_total=SEC_CREDIT, credit_from=SEC_CREDIT_FROM or None,
-                   credit_spent=round(spent, 4), credit_remaining=round(SEC_CREDIT - spent, 2))
+                   credit_spent=round(spent, 4), credit_remaining=round(SEC_CREDIT - spent, 2),
+                   credit_months=[{"month": m, "cost": round(c, 4)} for m, c in months])
     return out
 
 

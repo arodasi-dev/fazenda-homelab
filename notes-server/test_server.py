@@ -342,6 +342,7 @@ try:
             time.sleep(0.25)
     g = call("GET", "/gasto")[1]
     assert g["credit_total"] == 5.0 and g["credit_spent"] == 0.2 and g["credit_remaining"] == 4.8, g   # o mês 2000-01 fica de fora
+    assert g["credit_months"] == [{"month": time.strftime("%Y-%m"), "cost": 0.2}], g
     print("saldo da secretária ok")
 finally:
     proc.terminate()
