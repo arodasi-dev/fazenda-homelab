@@ -99,9 +99,7 @@ body.touch #help{display:none}
   <div class="bar hide-s"><i id="b-cpu" style="background:#e67e22"></i></div>
   <div class="bar hide-s"><i id="b-ram" style="background:#3498db"></i></div>
   <div style="font-size:11px">🥕 <span id="s-dsk"></span>% · 🦆 <span id="s-net"></span> Mb/s</div>
-  <div id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</div>
-  <div id="dbg" style="font-size:9px;opacity:.6;font-family:monospace"></div>
-</div>
+  <div id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</div></div>
 
 <div id="qbtn">📜</div>
 <div class="box" id="quests"><h4>📜 Missões do dia</h4><div id="qlist"></div></div>
@@ -664,6 +662,7 @@ function draw(t){
  ctx.setTransform(dpr,0,0,dpr,0,0);
  ctx.font='bold 11px "Trebuchet MS",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
  for(const b of B){
+  if(b.type==='clouds')continue;
   let txt=b.name,col='#5c5';
   if(b.type==='field')txt='🥕 Horta · '+Math.round(S.dsk)+'%';else if(b.type==='pond')txt='🦆 Lago · '+Math.round(S.net)+' Mb/s';
   else if(b.type==='house')txt='🏠 '+b.name;
@@ -778,7 +777,6 @@ function renderInfo(full){
   bt.innerHTML+='<button onclick="select(null)">✖</button>';}
 }
 function hud(){
- document.getElementById('dbg').textContent=`z${zoom.toFixed(2)} s${evenS()} ${VW}x${VH} d${dpr} c${cv.width}x${cv.height}`+(lastErr?' E:'+lastErr:'');
  const up=S.upBase+(Date.now()-S.t0)/1000,d=Math.floor(up/86400),h=Math.floor(up%86400/3600);
  const $=id=>document.getElementById(id);
  $('s-lv').textContent=lv;$('s-coin').textContent=coins;$('s-up').textContent=d+'d '+h+'h';
@@ -792,7 +790,7 @@ setInterval(hud,500);hud();
 setInterval(()=>{S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.3.2',APP_DATE='24/10/2026';
+const APP_VERSION='1.3.3',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
