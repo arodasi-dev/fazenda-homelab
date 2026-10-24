@@ -33,6 +33,7 @@ HOST = os.environ.get("HOST", "0.0.0.0")
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$")
+STAGES = {"idea", "build", "live"}
 MAX_BODY = 200_000
 LOCK = threading.Lock()
 
@@ -43,7 +44,7 @@ def now_iso():
 
 def read_note(path: Path):
     raw = path.read_text(encoding="utf-8")
-    title, updated, body = path.stem, None, raw
+    title, updated, stage, body = path.stem, None, "idea", raw
     if raw.startswith("---\n"):
         head, sep, rest = raw[4:].partition("\n---\n")
         if sep:
@@ -54,14 +55,16 @@ def read_note(path: Path):
                     title = val.strip()
                 elif key.strip() == "updated":
                     updated = val.strip()
+                elif key.strip() == "stage" and val.strip() in STAGES:
+                    stage = val.strip()
     if not updated:
         updated = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    return {"id": path.stem, "title": title, "text": body.strip("\n"), "updated": updated}
+    return {"id": path.stem, "title": title, "text": body.strip("\n"), "stage": stage, "updated": updated}
 
 
-def write_note(note_id: str, title: str, text: str, updated: str):
+def write_note(note_id: str, title: str, text: str, updated: str, stage: str = "idea"):
     title = " ".join(title.split())[:120] or note_id
-    content = f"---\ntitle: {title}\nupdated: {updated}\n---\n{text}\n"
+    content = f"---\ntitle: {title}\nstage: {stage}\nupdated: {updated}\n---\n{text}\n"
     fd, tmp = tempfile.mkstemp(dir=NOTES_DIR, suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(content)
@@ -139,12 +142,15 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length).decode("utf-8"))
             title, text = str(data.get("title", "")), str(data.get("text", ""))
             updated = str(data.get("updated", ""))
+            stage = str(data.get("stage", "idea"))
         except Exception:
             return self._send(400, {"error": "JSON inválido"})
         if not ISO_RE.match(updated):
             updated = now_iso()
+        if stage not in STAGES:
+            stage = "idea"
         with LOCK:
-            write_note(parts[1], title, text, updated)
+            write_note(parts[1], title, text, updated, stage)
         self._send(200, {"ok": True, "id": parts[1], "updated": updated})
 
     def do_DELETE(self):

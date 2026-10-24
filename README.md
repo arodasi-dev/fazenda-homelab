@@ -40,9 +40,19 @@ Hoje os dados (CPU, RAM, quedas dos serviços) são **simulados**.
 
 O GitHub Pages é **HTTPS**, e o navegador bloqueia chamadas de uma página HTTPS para `http://` (conteúdo misto). Para ler os dados do seu homeserver pelo iPhone, o servidor precisa responder em HTTPS, por exemplo com `tailscale serve` (certificado automático) e liberando CORS para o endereço do Pages.
 
-## Terreno secreto (ideias de apps)
+## Terrenos com névoa (ideias de apps)
 
-No mapa há um terreno coberto de nuvens com um `+`. Tocando nele você escreve ideias de novos apps para o servidor. As ideias ficam no aparelho e, se você configurar o servidor de notas (ícone ⚙️ na tela de ideias), são guardadas como arquivos `.md` numa pasta do homeserver. Veja [`notes-server/`](notes-server/README.md).
+Os terrenos vizinhos da fazenda estão cobertos de névoa. No primeiro terreno bloqueado há um `+`: toque nele e escreva uma ideia de app para o servidor. Cada ideia plantada **desbloqueia um terreno** (são 6; depois o `+` fica ao lado da casa).
+
+Cada terreno mostra a **fase** da ideia, que você muda na tela de ideias:
+
+| Fase | No mapa |
+|---|---|
+| 💡 Ideia | um brotinho com uma placa |
+| 🔨 Em obras | uma construção em andamento |
+| ✅ No servidor | uma casinha pronta com bandeira |
+
+Tocando num terreno liberado você abre a ideia dele. As ideias ficam no aparelho e, se você configurar o servidor de notas (⚙️ na tela de ideias), são guardadas como arquivos `.md` numa pasta do homeserver. Veja [`notes-server/`](notes-server/README.md).
 
 ## Versão
 

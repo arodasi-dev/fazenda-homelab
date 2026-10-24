@@ -16,6 +16,7 @@ As ideias ficam em `notes-server/notas/*.md`. Cada arquivo tem:
 ```
 ---
 title: Bot de lembretes
+stage: idea
 updated: 2026-10-24T12:00:00.000Z
 ---
 texto da ideia...
@@ -35,7 +36,7 @@ Ele mostra um endereço como `https://meuservidor.tailnet.ts.net`. Esse é o end
 
 ## Ligar no app
 
-1. Toque no `＋` do terreno de nuvens.
+1. Toque no `+` do terreno com névoa.
 2. Toque em ⚙️ e preencha a **URL** (acima) e o **token** (o do `.env`).
 3. Toque em **Testar conexão**. Se der ✅, está pronto: as ideias passam a sincronizar entre aparelhos.
 
@@ -50,7 +51,7 @@ Todas as rotas, menos `/health`, pedem `Authorization: Bearer <token>`.
 | GET | `/health` | testa se está no ar |
 | GET | `/notes` | lista todas as ideias |
 | GET | `/notes/<id>` | uma ideia |
-| PUT | `/notes/<id>` | cria ou atualiza `{title, text, updated}` |
+| PUT | `/notes/<id>` | cria ou atualiza `{title, text, stage, updated}` (`stage`: `idea`, `build` ou `live`) |
 | DELETE | `/notes/<id>` | apaga |
 
 ## Segurança
