@@ -151,7 +151,7 @@ body:not(.config) .adv{display:none!important}   /* configuração do servidor: 
 <script>
 'use strict';
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
-const WW=1024,WH=640;
+const WW=820,WH=520;
 const isTouch=matchMedia('(pointer:coarse)').matches||'ontouchstart' in window;
 if(isTouch)document.body.classList.add('touch');
 if(/[?&]config\b/.test(location.search))document.body.classList.add('config');
@@ -192,29 +192,28 @@ const PAD=16;
 
 /* ---------- mundo ---------- */
 const B=[
- {id:'house',name:'Casa (Servidor)',role:'O coração da fazenda: o servidor em si',type:'house',x:464,y:112,w:64,h:56,meta:true},
- {id:'jellyfin',name:'Jellyfin',role:'Celeiro de filmes e séries',type:'barn',x:150,y:224,w:64,h:64,animal:'cow',n:2,pen:{x:222,y:208,w:120,h:80,gap:'s'}},
- {id:'immich',name:'Immich',role:'Galinheiro das fotos (põe ovos!)',type:'coop',x:110,y:346,w:44,h:36,animal:'chicken',n:4,pen:{x:160,y:336,w:100,h:84,gap:'n'}},
- {id:'sonarr',name:'Sonarr',role:'Chiqueiro dos downloads',type:'sty',x:290,y:346,w:36,h:30,animal:'pig',n:2,pen:{x:334,y:336,w:90,h:76,gap:'n'}},
- {id:'pihole',name:'Pi-hole',role:'Cachorro de guarda: bloqueia os anúncios',type:'dog',x:436,y:336,w:28,h:24,animal:'dog',n:1,zone:{x:428,y:326,w:60,h:84}},
- {id:'vaultwarden',name:'Vaultwarden',role:'Cofre das senhas, vigiado pelas ovelhas',type:'shed',x:570,y:336,w:40,h:36,animal:'sheep',n:3,pen:{x:618,y:330,w:110,h:84,gap:'n'}},
- {id:'kuma',name:'Uptime Kuma',role:'Moinho que vigia tudo',type:'mill',x:760,y:184,w:36,h:100},
- {id:'field',name:'Horta (Disco)',role:'Quanto mais cheia, mais disco usado',type:'field',x:440,y:440,w:128,h:96,meta:true},
- {id:'pond',name:'Lago (Rede)',role:'As ondas mostram o tráfego de rede',type:'pond',x:770,y:430,w:140,h:80,meta:true}
+ {id:'house',name:'Casa (Servidor)',role:'O coração da fazenda: o servidor em si',type:'house',x:378,y:96,w:64,h:56,meta:true},
+ {id:'jellyfin',name:'Jellyfin',role:'Celeiro de filmes e séries',type:'barn',x:130,y:154,w:64,h:64,animal:'cow',n:2,pen:{x:206,y:138,w:120,h:80,gap:'s'}},
+ {id:'immich',name:'Immich',role:'Galinheiro das fotos (põe ovos!)',type:'coop',x:56,y:258,w:44,h:36,animal:'chicken',n:4,pen:{x:106,y:250,w:100,h:84,gap:'n'}},
+ {id:'sonarr',name:'Sonarr',role:'Chiqueiro dos downloads',type:'sty',x:226,y:258,w:36,h:30,animal:'pig',n:2,pen:{x:270,y:250,w:90,h:76,gap:'n'}},
+ {id:'pihole',name:'Pi-hole',role:'Cachorro de guarda: bloqueia os anúncios',type:'dog',x:430,y:262,w:28,h:24,animal:'dog',n:1,zone:{x:422,y:252,w:60,h:84}},
+ {id:'vaultwarden',name:'Vaultwarden',role:'Cofre das senhas, vigiado pelas ovelhas',type:'shed',x:514,y:258,w:40,h:36,animal:'sheep',n:3,pen:{x:562,y:252,w:110,h:84,gap:'n'}},
+ {id:'kuma',name:'Uptime Kuma',role:'Moinho que vigia tudo',type:'mill',x:478,y:118,w:36,h:100},
+ {id:'field',name:'Horta (Disco)',role:'Quanto mais cheia, mais disco usado',type:'field',x:346,y:372,w:128,h:96,meta:true},
+ {id:'pond',name:'Lago (Rede)',role:'As ondas mostram o tráfego de rede',type:'pond',x:676,y:368,w:120,h:68,meta:true}
 ];
 // terrenos vizinhos cobertos de névoa: cada ideia plantada desbloqueia um
-const ENTRYFIX0={x:548,y:148,w:26,h:24};
+const ENTRYFIX0={x:448,y:116,w:26,h:24};
 const PLOTS=[
- {x:610,y:60,w:120,h:86},{x:250,y:52,w:150,h:100},{x:830,y:60,w:150,h:110},
- {x:50,y:450,w:190,h:150},{x:260,y:455,w:150,h:135},{x:590,y:455,w:150,h:135}
+ {x:500,y:22,w:130,h:76},{x:130,y:22,w:140,h:76},{x:652,y:22,w:130,h:76},
+ {x:24,y:392,w:160,h:110},{x:196,y:400,w:140,h:100},{x:520,y:396,w:130,h:104}
 ].map((p,i)=>Object.assign(p,{type:'plot',idx:i,unlocked:false,fog:1,idea:null}));
 B.forEach(b=>{b.state='up';b.cpu=rr(5,40);b.ram=rr(20,60);b.cpuT=b.cpu;b.since=Date.now()-rr(2,20)*86400000;b.ang=0;});
-const house=B[0],POND={cx:840,cy:470,rx:68,ry:38};
-const PATHS=[[488,168,16,148],[100,300,780,16],[770,284,16,16],[488,316,16,124],[832,316,16,96]];
+const house=B[0],POND={cx:736,cy:402,rx:60,ry:34};
+const ROAD_Y=226,PATH_X=402;
+const PATHS=[[PATH_X,152,16,220],[60,ROAD_Y,700,16],[490,218,16,12]];
 // zona máxima de cada cercadinho no modo ao vivo (índice = prédio em B); gap = lado do portão
-const ZONES={1:{x:30,y:162,w:420,h:130,anchor:'bottom',gap:'s'},2:{x:30,y:324,w:320,h:112,anchor:'top',gap:'n'},
- 3:{x:352,y:324,w:132,h:112,anchor:'top',gap:'n'},4:{x:512,y:324,w:100,h:104,anchor:'top',gap:'n'},
- 5:{x:614,y:324,w:146,h:108,anchor:'top',gap:'n'},6:{x:530,y:162,w:226,h:130,anchor:'bottom',gap:'s'}};
+const ZONES={a:{x:24,y:100,w:364,h:118},b:{x:24,y:250,w:364,h:112},c:{x:432,y:100,w:364,h:118},d:{x:432,y:250,w:364,h:112}};
 const inPath=(x,y)=>PATHS.some(p=>x>=p[0]&&x<p[0]+p[2]&&y>=p[1]&&y<p[1]+p[3]);
 
 const solids=[];
@@ -421,8 +420,8 @@ function quest(k,n=1){const q=quests.find(q=>q.k===k);if(!q||q.done||!questOn(q)
 const upCount=()=>live?[...CONTS.values()].filter(c=>c.ok).length:B.filter(b=>b.animal||b.type==='mill').filter(b=>b.state==='up').length;
 
 /* ---------- entidades ---------- */
-const P={x:496,y:200,dir:1,f:'down',moving:false};
-const cam={x:496,y:200};let zoom=innerWidth<700?2.2:3,zoomT=zoom,follow=true,sel=null,zAnchor=null;
+const P={x:410,y:176,dir:1,f:'down',moving:false};
+const cam={x:410,y:176};let zoom=innerWidth<700?2.2:3,zoomT=zoom,follow=true,sel=null,zAnchor=null;
 const A=[],CONTS=new Map();
 // Em modo ao vivo há um bichinho por container; na demonstração, os da lista fixa.
 function buildAnimals(){A.length=0;
@@ -601,7 +600,7 @@ function drawFog(p,t){
  pos.forEach(([x,y,r])=>{de(x,y,r,r*.72|0,'#ffffff');de(x-r*.25|0,y-r*.3|0,r*.55|0,r*.38|0,'#f3f8ff');});
  ctx.restore();
 }
-const ENTRYFIX={type:'plot',fixed:true,x:548,y:148,w:26,h:24,unlocked:true,idea:null};
+const ENTRYFIX={type:'plot',fixed:true,x:448,y:116,w:26,h:24,unlocked:true,idea:null};
 const entryTarget=()=>PLOTS.find(p=>!p.unlocked)||ENTRYFIX;
 function drawEntry(t){
  const e=entryTarget();if(!inView(e))return;
@@ -714,28 +713,36 @@ const MINI_SC={1:.42,2:.62,3:.7,4:.9,5:.62,6:.4};
 const MINI=(()=>{const m={};for(const i in MINI_SC){const src=B[i].spr,sc=MINI_SC[i],c2=document.createElement('canvas');
  c2.width=Math.ceil(src.width*sc);c2.height=Math.ceil(src.height*sc);const x=c2.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(src,0,0,c2.width,c2.height);
  m[i]={cv:c2,sc,w:B[i].w*sc,h:B[i].h*sc};}return m;})();
+// faixas dos cercadinhos ao vivo: lado (w = oeste da trilha, e = leste), ancorados na estrada; db fica colado na trilha
+const ROWS=[{side:'w',north:true,groups:[1]},{side:'e',north:true,groups:[6]},{side:'w',north:false,groups:[3,2]},{side:'e',north:false,groups:[4,5]}];
 function layoutLive(){
- for(let i=1;i<=6;i++){
-  const z=ZONES[i],b=B[i],cs=b.conts||[],mi=MINI[i];
-  const maxCols=Math.max(1,Math.floor((z.w-16)/40)),maxRows=Math.max(1,Math.floor((z.h-16)/44));
-  const cols=Math.max(1,Math.min(cs.length||1,maxCols)),shown=cs.slice(0,maxCols*maxRows);
-  const rows=Math.max(1,Math.ceil(shown.length/cols));
-  const w=Math.max(64,cols*40+16),h=rows*44+16;
-  const rect={x:z.x,y:z.anchor==='bottom'?z.y+z.h-h:z.y,w,h};
-  const houses=shown.map((c,k)=>{const x0=rect.x+8+(k%cols)*40,y0=rect.y+8+Math.floor(k/cols)*44,cx=x0+20,base=y0+34;
-   return{cont:c,x:cx-mi.w/2,y:base-mi.h,w:mi.w,h:mi.h,key:i,zone:{x:cx-13,y:base+3,w:26,h:6}};});
-  b.extra=cs.length-shown.length;
-  setYard(i,rect,z.gap,houses);
-  b.x=rect.x;b.y=rect.y;b.w=rect.w;b.h=rect.h;b.sol.w=-1;b.sol.h=-1;   // o prédio grande some no modo ao vivo
- }
+ for(const r of ROWS){
+  const yTop=r.north?100:250,yBot=r.north?218:362;
+  const maxRows=Math.max(1,Math.floor((yBot-yTop-16)/44));
+  let edge=r.side==='w'?PATH_X-14:PATH_X+16+14;
+  const limit=r.side==='w'?24:WW-24;
+  for(const i of r.groups){
+   const b=B[i],cs=b.conts||[],mi=MINI[i];
+   const maxCols=Math.max(1,Math.floor((Math.abs(limit-edge)-16)/40));
+   const cols=Math.max(1,Math.min(cs.length||1,maxCols)),shown=cs.slice(0,maxCols*maxRows);
+   const rows=Math.max(1,Math.ceil(shown.length/cols));
+   const w=Math.max(64,cols*40+16),h=rows*44+16;
+   const rect={x:r.side==='w'?edge-w:edge,y:r.north?yBot-h:yTop,w,h};
+   const houses=shown.map((c,k)=>{const x0=rect.x+8+(k%cols)*40,y0=rect.y+8+Math.floor(k/cols)*44,cx=x0+20,base=y0+34;
+    return{cont:c,x:cx-mi.w/2,y:base-mi.h,w:mi.w,h:mi.h,key:i,zone:{x:cx-13,y:base+3,w:26,h:6}};});
+   b.extra=cs.length-shown.length;
+   setYard(i,rect,r.north?'s':'n',houses);
+   b.x=rect.x;b.y=rect.y;b.w=rect.w;b.h=rect.h;b.sol.w=-1;b.sol.h=-1;   // o prédio grande some no modo ao vivo
+   edge=r.side==='w'?rect.x-12:rect.x+w+12;
+  }}
  unstickPlayer();
 }
 function drawYard(Y){
  const r=Y.rect;if(!r||!inView(r))return;
  // trilha do portão até a estrada
  const cx=r.x+r.w/2;ctx.save();ctx.scale(.5,.5);
- if(Y.gap==='s'){R(ctx,(cx-9)*2,(r.y+r.h-4)*2,36,(302-(r.y+r.h-4))*2,'#dcb883');R(ctx,(cx-9)*2,(r.y+r.h-4)*2,2,(302-(r.y+r.h-4))*2,'#c9a06a');}
- else{R(ctx,(cx-9)*2,314*2,36,(r.y+4-314)*2,'#dcb883');R(ctx,(cx-9)*2,314*2,2,(r.y+4-314)*2,'#c9a06a');}
+ if(Y.gap==='s'){R(ctx,(cx-9)*2,(r.y+r.h-4)*2,36,(ROAD_Y+2-(r.y+r.h-4))*2,'#dcb883');R(ctx,(cx-9)*2,(r.y+r.h-4)*2,2,(ROAD_Y+2-(r.y+r.h-4))*2,'#c9a06a');}
+ else{R(ctx,(cx-9)*2,(ROAD_Y+14)*2,36,(r.y+4-(ROAD_Y+14))*2,'#dcb883');R(ctx,(cx-9)*2,(ROAD_Y+14)*2,2,(r.y+4-(ROAD_Y+14))*2,'#c9a06a');}
  ctx.restore();
  if(Y.spr)blit(Y.spr,r.x-PAD/2,r.y-PAD/2);
 }
@@ -754,6 +761,19 @@ function drawHouse(h,t){
  if(selCont===c){const p=1+Math.sin(t*5)*0.5;ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=1;ctx.setLineDash([3,2]);ctx.strokeRect(h.x-3-p,h.y-3-p,h.w+6+p*2,h.h+14+p*2);ctx.setLineDash([]);}
 }
 restoreDemoYards();
+// chegar perto de uma casinha (ou prédio, na demonstração) abre o painel dela, como se tivesse tocado
+function proximity(){
+ if(notesOpen)return;
+ let best=null,bd=Infinity;
+ const test=(k,b,cont,x,y,r)=>{const d=Math.hypot(x-P.x,y-P.y);if(d<r&&d<bd){bd=d;best={k,b,cont};}};
+ if(live){for(const i in YARDS)for(const h of YARDS[i].houses)test(h,YARDS[i].b,h.cont,h.x+h.w/2,h.y+h.h,22);}
+ else for(let i=1;i<=6;i++){const b=B[i];test(b,b,null,b.x+b.w/2,b.y+b.h,34);}
+ const key=best?best.k:null;
+ if(key===proxT)return;
+ proxT=key;
+ if(best){lastPickCont=best.cont;select(best.b);autoOpen=true;}
+ else if(autoOpen)select(null);   // se o painel foi aberto por aproximação, fecha ao se afastar
+}
 function drawEgg(e){ctx.save();ctx.translate(Math.round(e.x*2)/2,Math.round(e.y*2)/2);ctx.scale(.5,.5);de(1,0,5,2,'rgba(35,95,60,.3)');de(0,-4,4,5,'#fffdf5');d_(-2,-7,2,2,'#fff');d_(-3,-1,6,1,'#e0d8c0');ctx.restore();}
 
 /* ---------- atualização ---------- */
@@ -773,7 +793,7 @@ function update(dt,t){
   if(!blockedP(nx,P.y))P.x=nx;if(!blockedP(P.x,ny))P.y=ny;
   if(Math.abs(dy)>Math.abs(dx)*1.2)P.f=dy>0?'down':'up';else{P.f='side';P.dir=dx>0?1:-1;}
   follow=true;}
- updAnimals(dt);
+ updAnimals(dt);proximity();
  PLOTS.forEach(p=>{const tg=p.unlocked?0:1;if(p.fog!==tg){p.fog+=(tg-p.fog)*Math.min(1,dt*2.6);if(Math.abs(tg-p.fog)<0.01)p.fog=tg;}});
  eggT+=dt;if(eggT>6){eggT=0;if(eggs.length<6){const ch=A.filter(a=>a.type==='chicken'&&aState(a)==='up');if(ch.length){const a=ch[Math.random()*ch.length|0];eggs.push({x:a.x+(Math.random()*6-3),y:a.y+2});}}}
  for(let i=eggs.length-1;i>=0;i--){const e=eggs[i];if(Math.hypot(e.x-P.x,e.y-P.y)<9){eggs.splice(i,1);coins+=5;quest('eggs');toast('🥚 Ovo coletado! +5 🪙');}}
@@ -931,9 +951,10 @@ function pick(w){
  return null;
 }
 function clickAt(sx,sy){const w=toWorld(sx,sy);let b=pick(w);if(!b&&isTouch){let bd=18;for(const a of A){const d=Math.hypot(a.x-w.x,a.y-6-w.y);if(d<bd){bd=d;b=a.b;lastPickCont=a.cont||null;}}}select(b);}
-let selCont=null,lastPickCont=null;
+let selCont=null,lastPickCont=null,autoOpen=false,proxT=null;
 const visited=new Set();
 function select(b){
+ autoOpen=false;
  if(b&&b.type==='plot'){sel=null;renderInfo(true);
   if(b===entryTarget())openNotes(null);
   else if(b.unlocked&&b.idea)openNotes(b.idea.id);
@@ -1014,7 +1035,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.6.0',APP_DATE='24/10/2026';
+const APP_VERSION='1.7.0',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
@@ -1147,7 +1168,7 @@ function setLive(v){
  if(live){liveSnap=true;toast('🟢 Conectado ao servidor!');updateBuildings();}
  else{toast('🔴 Perdi a conexão com o servidor. Voltando à demonstração.');CONTS.clear();restoreDemo();}
  if(live)layoutLive();else restoreDemoYards();
- buildAnimals();selCont=null;sel=null;renderInfo(true);
+ buildAnimals();selCont=null;sel=null;proxT=null;autoOpen=false;renderInfo(true);
 }
 async function pollLive(){
  if(!cfg.url||!cfg.token){if(live)setLive(false);return;}

@@ -60,6 +60,7 @@ Com o servidor da fazenda ligado ([`notes-server/`](notes-server/README.md)), o 
 
 - **CPU, RAM, disco e rede** do painel e da fazenda (horta = disco, lago = rede, fumaça da casa = CPU).
 - **Cada container Docker vira uma casinha**, com um bichinho ao lado, dentro do cercadinho do tipo dele (apps, agentes, bancos de dados, DNS, segurança, monitoramento). O cercadinho cresce conforme o número de containers.
+- Quando a personagem chega perto de uma casinha, o painel dela abre sozinho (como se você tivesse tocado) e fecha ao se afastar.
 - Container parado ou não saudável deixa a casinha cinza e o bichinho doente 🤒. Tocando na casinha você vê CPU, memória e os **logs**, e o nome aparece ao dar zoom.
 - O painel mostra `🟢 ao vivo`, `🔴 sem conexão` ou `🎮 demonstração`. Sem servidor configurado (⚙️), o app roda com dados simulados.
 - Na versão ao vivo, as ações "Backup", "Atualizar" e "Limpar" ficam desativadas, porque ainda não fazem nada de verdade no servidor.
