@@ -958,8 +958,8 @@ function draw(t){
  const houseLb=[];
  if(live)for(const i in YARDS)for(const h of YARDS[i].houses){const n=h.cont.name;
   if(cs>=3.2||h.cont===selCont)houseLb.push({type:'houselabel',name:n.length>14&&h.cont!==selCont?n.slice(0,13)+'…':n,x:h.x+h.w/2,y:h.y-4,w:0,h:0,meta:false,state:h.cont.busy?'restarting':h.cont.ok?'up':'down',cpu:0});}
- if(secVisible()){const g=gastoData&&gastoData.enabled&&!gastoData.error?gastoData:null;
-  houseLb.push({type:'houselabel',name:'🌼 Alice Secretária'+(g&&g.credit_remaining!=null?' · US$ '+(g.credit_total-g.credit_spent).toFixed(2).replace('.',','):''),x:SEC.x+SEC.w/2,y:SEC.y-4,w:0,h:0,meta:false,state:secState(),cpu:0});}
+ if(secVisible()){
+  houseLb.push({type:'houselabel',name:'🌼 Alice Secretária',x:SEC.x+SEC.w/2,y:SEC.y-4,w:0,h:0,meta:false,state:secState(),cpu:0});}
  const LB=B.concat(houseLb,PLOTS.filter(p=>p.unlocked&&p.fog<0.3&&p.idea).map(p=>{const st=p.idea.stage||'idea',tt=p.idea.title;
   return{type:'plotlabel',name:STAGES[st].e+' '+(tt.length>20?tt.slice(0,19)+'…':tt),x:p.x+p.w/2,y:p.y+p.h*0.7-40,w:0,h:0,meta:true,state:'up',cpu:0};}));
  for(const b of LB){
@@ -1143,7 +1143,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.11.1',APP_DATE='24/10/2026';
+const APP_VERSION='1.11.2',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
