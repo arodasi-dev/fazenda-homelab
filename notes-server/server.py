@@ -30,6 +30,8 @@ Gasto da secretária (o mesmo número do /gasto do Telegram), lido do banco dela
   SECRETARIA_BUDGET_USD         limite mensal (o mesmo LLM_MONTHLY_BUDGET_USD dela; padrão 1.5)
   SECRETARIA_PRICE_IN_PER_MTOK  preço por milhão de tokens de entrada (padrão 1.0)
   SECRETARIA_PRICE_OUT_PER_MTOK preço por milhão de tokens de saída (padrão 5.0)
+  SECRETARIA_CREDIT_USD         (opcional) crédito que você comprou; o saldo = crédito - gasto acumulado dela
+  SECRETARIA_CREDIT_FROM        (opcional) mês da compra, AAAA-MM: só conta o gasto desse mês em diante
 """
 import hmac
 import http.client
@@ -50,7 +52,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, unquote, quote, parse_qs
 
-VERSION = "1.9.0"
+VERSION = "1.9.1"
 NOTES_DIR = Path(os.environ.get("NOTES_DIR", "./notas"))
 TOKEN = os.environ.get("NOTES_TOKEN", "")
 ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGIN", "https://arodasi-dev.github.io").split(",") if o.strip()]
@@ -70,6 +72,8 @@ SEC_DB = os.environ.get("SECRETARIA_DB", "/secretaria/secretaria.db")
 SEC_BUDGET = float(os.environ.get("SECRETARIA_BUDGET_USD", "1.5") or 1.5)
 SEC_PRICE_IN = float(os.environ.get("SECRETARIA_PRICE_IN_PER_MTOK", "1.0") or 1.0)
 SEC_PRICE_OUT = float(os.environ.get("SECRETARIA_PRICE_OUT_PER_MTOK", "5.0") or 5.0)
+SEC_CREDIT = float(os.environ.get("SECRETARIA_CREDIT_USD", "0") or 0)
+SEC_CREDIT_FROM = os.environ.get("SECRETARIA_CREDIT_FROM", "").strip()
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -351,14 +355,20 @@ def secretaria_gasto():
         con = sqlite3.connect(f"file:{SEC_DB}?mode=ro", uri=True, timeout=3)
         try:
             row = con.execute("SELECT calls, tokens_in, tokens_out FROM usage WHERE month=?", (month,)).fetchone()
+            rows = con.execute("SELECT month, tokens_in, tokens_out FROM usage").fetchall() if SEC_CREDIT > 0 else []
         finally:
             con.close()
     except Exception as e:
         return {"enabled": True, "error": "não consegui ler o banco da secretária: " + type(e).__name__}
     calls, tin, tout = row if row else (0, 0, 0)
     cost = tin * SEC_PRICE_IN / 1e6 + tout * SEC_PRICE_OUT / 1e6
-    return {"enabled": True, "month": month, "calls": calls, "tokens_in": tin, "tokens_out": tout,
-            "cost": round(cost, 4), "budget": SEC_BUDGET, "active": cost < SEC_BUDGET}
+    out = {"enabled": True, "month": month, "calls": calls, "tokens_in": tin, "tokens_out": tout,
+           "cost": round(cost, 4), "budget": SEC_BUDGET, "active": cost < SEC_BUDGET}
+    if SEC_CREDIT > 0:  # saldo estimado: crédito comprado - gasto acumulado desde o mês da compra
+        spent = sum(i * SEC_PRICE_IN / 1e6 + o * SEC_PRICE_OUT / 1e6 for m, i, o in rows if m >= SEC_CREDIT_FROM)
+        out.update(credit_total=SEC_CREDIT, credit_from=SEC_CREDIT_FROM or None,
+                   credit_spent=round(spent, 4), credit_remaining=round(SEC_CREDIT - spent, 2))
+    return out
 
 
 def manual_path():

@@ -83,7 +83,16 @@ SECRETARIA_PRICE_OUT_PER_MTOK=5.0
 
 `SECRETARIA_DATA` é a pasta `data` da secretária, a mesma que o compose dela monta em `/data`. Os três valores seguintes devem ser **iguais** aos da secretária (`LLM_MONTHLY_BUDGET_USD`, `LLM_PRICE_IN_PER_MTOK` e `LLM_PRICE_OUT_PER_MTOK` no `.env` dela). Depois, `docker compose up -d`.
 
-Isso mostra só o que a **secretária** gastou, não o crédito total da conta da API. O mês usa o horário do servidor, então na virada do mês pode haver diferença de algumas horas em relação ao Telegram.
+Isso mostra o que a **secretária** gastou no mês.
+
+**Saldo estimado (opcional).** Como o banco guarda o gasto de todos os meses, dá para calcular `crédito comprado − gasto acumulado`. Acrescente no `.env`:
+
+```
+SECRETARIA_CREDIT_USD=5
+SECRETARIA_CREDIT_FROM=2026-10
+```
+
+`SECRETARIA_CREDIT_USD` é quanto você comprou e `SECRETARIA_CREDIT_FROM` é o mês da compra (só o gasto desse mês em diante entra na conta). O painel passa a mostrar `💳 ~US$ 4,80 restantes`. Só é confiável se a secretária for a **única** a usar essa chave da API e se o preço configurado bater com o da Anthropic; qualquer outro uso (outros agentes, testes no Console) não entra na conta. Confira de vez em quando em **Gastos** no Console. O mês usa o horário do servidor, então na virada do mês pode haver diferença de algumas horas em relação ao Telegram.
 
 ## Saldo da API digitado à mão (sem chave de administrador)
 

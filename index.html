@@ -1039,7 +1039,8 @@ function hud(){
   else{const f=g.cost/g.budget;ge.textContent='🤖 Secretária '+usd3(g.cost)+' de '+usd3(g.budget)+(g.active?'':' (IA desligada)');
    ge.style.color=f>=1?'#c0392b':f>0.7?'#d68910':'';
    ge.title='Gasto estimado da secretária neste mês ('+g.month+'): '+g.calls+' chamadas, '+g.tokens_in+' tokens de entrada e '+g.tokens_out+' de saída. É o mesmo número do /gasto no Telegram.';}}
- const cr=live&&creditData&&creditData.enabled?creditData:null,ce=$('credit');
+ const sec=g&&!g.error&&g.credit_remaining!=null?{remaining:g.credit_remaining,total:g.credit_total,spent:g.credit_spent,month:g.cost,since:g.credit_from||'o início',sec:true}:null;
+ const cr=live&&creditData&&creditData.enabled?creditData:sec,ce=$('credit');
  ce.style.display=cr?'block':'none';
  if(cr){const usd=v=>'US$ '+v.toFixed(2).replace('.',',');
   let t,col='';
@@ -1048,7 +1049,7 @@ function hud(){
   else if(cr.spent!=null)t='💳 gasto '+usd(cr.spent)+' (mês '+usd(cr.month)+')';
   else t='💳 sem leitura';
   ce.textContent=t;ce.style.color=col;
-  ce.title=cr.manual?('Saldo que você informou em '+new Date(cr.as_of).toLocaleDateString('pt-BR')+'. Não atualiza sozinho: confira em Gastos no Console.'):cr.error?('Erro: '+cr.error):('Estimativa: comprado '+(cr.total!=null?usd(cr.total):'?')+' − gasto '+usd(cr.spent||0)+' desde '+cr.since+'. Priority Tier e impostos não entram.');}
+  ce.title=cr.sec?('Estimativa: crédito '+usd(cr.total)+' − gasto acumulado da secretária '+usd(cr.spent)+' (desde '+cr.since+'). Só vale se ela for a única a usar a API.'):cr.manual?('Saldo que você informou em '+new Date(cr.as_of).toLocaleDateString('pt-BR')+'. Não atualiza sozinho: confira em Gastos no Console.'):cr.error?('Erro: '+cr.error):('Estimativa: comprado '+(cr.total!=null?usd(cr.total):'?')+' − gasto '+usd(cr.spent||0)+' desde '+cr.since+'. Priority Tier e impostos não entram.');}
  $('livechip').textContent=live?(dockerBad?'🟡 sem Docker':'🟢 ao vivo'):(cfg.url&&cfg.token?'🔴 sem conexão':'🎮 demo');
  $('b-cpu').style.width=S.cpu+'%';$('b-ram').style.width=S.ram+'%';
  $('qlist').innerHTML=quests.filter(questOn).map(q=>`<div class="q ${q.done?'done':''}">${q.done?'☑':'☐'} ${q.t}${q.goal?` (${Math.min(q.n,q.goal)}/${q.goal})`:''}</div>`).join('');
@@ -1058,7 +1059,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.9.0',APP_DATE='24/10/2026';
+const APP_VERSION='1.9.1',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}

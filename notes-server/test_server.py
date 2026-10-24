@@ -325,7 +325,24 @@ try:
     # 100000 tokens in x US$1/Mtok + 20000 out x US$5/Mtok = 0.1 + 0.1 = 0.2 (só o mês atual conta)
     assert code == 200 and g["enabled"] and g["calls"] == 7 and g["cost"] == 0.2 and g["budget"] == 1.5 and g["active"] is True, g
     assert call("GET", "/gasto", headers={"Content-Type": "application/json"})[0] == 401
+    assert "credit_remaining" not in g   # sem SECRETARIA_CREDIT_USD não calcula saldo
     print("gasto da secretária ok")
+finally:
+    proc.terminate()
+# saldo = crédito comprado - gasto acumulado (só do mês da compra em diante)
+env7 = dict(env, PORT="8790", SECRETARIA_DB=sec_db, SECRETARIA_CREDIT_USD="5", SECRETARIA_CREDIT_FROM=time.strftime("%Y-%m"))
+proc = subprocess.Popen([sys.executable, os.path.join(HERE, "server.py")], env=env7, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+BASE = "http://127.0.0.1:8790"
+try:
+    for _ in range(40):
+        try:
+            if call("GET", "/health")[0] == 200:
+                break
+        except Exception:
+            time.sleep(0.25)
+    g = call("GET", "/gasto")[1]
+    assert g["credit_total"] == 5.0 and g["credit_spent"] == 0.2 and g["credit_remaining"] == 4.8, g   # o mês 2000-01 fica de fora
+    print("saldo da secretária ok")
 finally:
     proc.terminate()
 env6 = dict(env, PORT="8791", SECRETARIA_DB=os.path.join(sec_dir, "nao-existe.db"))

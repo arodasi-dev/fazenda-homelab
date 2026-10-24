@@ -36,6 +36,8 @@ services:
       SECRETARIA_BUDGET_USD: ${SECRETARIA_BUDGET_USD:-1.5}
       SECRETARIA_PRICE_IN_PER_MTOK: ${SECRETARIA_PRICE_IN_PER_MTOK:-1.0}
       SECRETARIA_PRICE_OUT_PER_MTOK: ${SECRETARIA_PRICE_OUT_PER_MTOK:-5.0}
+      SECRETARIA_CREDIT_USD: ${SECRETARIA_CREDIT_USD:-0}
+      SECRETARIA_CREDIT_FROM: ${SECRETARIA_CREDIT_FROM:-}
     volumes:
       - ./notas:/data
       # pasta "data" da secretária (ex.: /home/isadora/secretaria/data); sem isso fica desligado
