@@ -808,6 +808,12 @@ function updAlice(dt){
  if(!secVisible()||!Yd){ALICE.init=false;return;}
  const a=ALICE;
  if(!a.init){Object.assign(a,{init:true,state:'garden',x:Yd.x+46,y:Yd.y+68,wp:1,wait:1.5,tasks:0,hidden:false,water:false,moving:false});}
+ if(a.state==='chat'){
+  const dx=P.x-a.x,dy=P.y-a.y,d=Math.hypot(dx,dy);
+  if(d>22){const sp=Math.min(15*dt,d-22);a.x+=dx/d*sp;a.y+=dy/d*sp;a.moving=true;}else a.moving=false;
+  a.f='side';a.dir=dx>=0?1:-1;a.water=false;
+  a.x=clamp(a.x,Yd.x+8,Yd.x+Yd.w-8);a.y=clamp(a.y,Yd.y+52,Yd.y+Yd.h-4);
+  return;}
  const door={x:SEC.x+SEC.w/2,y:SEC.y+SEC.h+4};
  const gw=[{x:Yd.x+22,y:Yd.y+66},{x:Yd.x+48,y:Yd.y+68},{x:Yd.x+74,y:Yd.y+66},{x:Yd.x+88,y:Yd.y+56}];
  const walk=p=>{const dx=p.x-a.x,dy=p.y-a.y,d=Math.hypot(dx,dy);if(d<1.5){a.moving=false;return true;}
@@ -822,6 +828,49 @@ function updAlice(dt){
  }else{   // dentro de casa
   a.wait-=dt;if(a.wait<=0){a.hidden=false;a.state='garden';a.wait=0.6;a.wp=1;a.f='down';}
  }
+}
+// conversa da bonequinha com a Alice ao entrar no quintal
+const CONV={on:false,i:0,t:0,lines:[],cool:0,inYard:false};
+function startChat(){
+ const g=gastoData&&gastoData.enabled&&!gastoData.error?gastoData:null,usd=v=>'US$ '+v.toFixed(2).replace('.',',');
+ const L=[['p','Oi, Alice! 👋'],['a','Oi! Bem-vinda ao meu jardim 🌼'],['p','Como estão os gastos da IA?']];
+ if(g){
+  L.push(['a','Neste mês gastei '+usd(g.cost)+' de '+usd(g.budget)+'.']);
+  if(g.credit_remaining!=null)L.push(['a','E ainda tenho '+usd(g.credit_total-g.credit_spent)+' de saldo.']);
+  const f=g.cost/g.budget;
+  L.push(['a',!g.active?'Estou com a IA desligada até o mês virar 💤':f>0.7?'Estou quase no limite do mês, hein! 😅':'Está tudo sob controle por aqui 😊']);
+ }else L.push(['a','Ainda não consigo ver os meus gastos 🤔']);
+ L.push(['p','Obrigada, Alice! 💜'],['a','Por nada! Volto às minhas flores 🌷']);
+ Object.assign(CONV,{on:true,i:0,t:0,lines:L});
+ Object.assign(ALICE,{state:'chat',hidden:false,wait:0,water:false});
+ if(sel===SEC&&autoOpen)select(null);   // a caixinha não cobre o balão
+}
+function endChat(){CONV.on=false;CONV.cool=25;if(ALICE.state==='chat'){ALICE.state='garden';ALICE.wait=0.8;ALICE.wp=1;ALICE.f='down';}}
+function updChat(dt){
+ const Yd=SEC.yard,inY=!!(secVisible()&&Yd&&P.x>=Yd.x&&P.x<=Yd.x+Yd.w&&P.y>=Yd.y&&P.y<=Yd.y+Yd.h);
+ CONV.cool=Math.max(0,CONV.cool-dt);
+ if(inY&&!CONV.inYard&&!CONV.on&&CONV.cool<=0&&ALICE.init)startChat();
+ if(!inY&&CONV.on)endChat();
+ CONV.inYard=inY;
+ if(!CONV.on)return;
+ if(!P.moving){P.f='side';P.dir=ALICE.x>=P.x?1:-1;}
+ CONV.t+=dt;
+ if(CONV.t>1.4+CONV.lines[CONV.i][1].length*0.05){CONV.i++;CONV.t=0;if(CONV.i>=CONV.lines.length)endChat();}
+}
+function drawBubble(cs){
+ if(!CONV.on)return;const cur=CONV.lines[CONV.i];if(!cur)return;
+ const who=cur[0]==='a'?ALICE:P,sx=(who.x-cam.x)*cs+VW/2,sy=(who.y-46-cam.y)*cs+VH/2;
+ ctx.font='bold 12px "Trebuchet MS",sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
+ const maxW=Math.min(190,VW-24),lines=[];let ln='';
+ for(const w of cur[1].split(' ')){const tt=ln?ln+' '+w:w;if(ctx.measureText(tt).width>maxW-16&&ln){lines.push(ln);ln=w;}else ln=tt;}
+ lines.push(ln);
+ const bw=Math.min(maxW,Math.max(...lines.map(l=>ctx.measureText(l).width))+16),bh=lines.length*15+10;
+ const bx=clamp(sx-bw/2,8,VW-bw-8),by=Math.max(8,sy-bh-9),tip=clamp(sx,bx+16,bx+bw-16);
+ ctx.fillStyle='#fffdf5';ctx.strokeStyle=cur[0]==='a'?'#8e6bbf':'#8a5a3a';ctx.lineWidth=2;
+ ctx.beginPath();ctx.roundRect(bx,by,bw,bh,9);ctx.fill();ctx.stroke();
+ ctx.beginPath();ctx.moveTo(tip-6,by+bh-1);ctx.lineTo(tip,by+bh+8);ctx.lineTo(tip+6,by+bh-1);ctx.fill();
+ ctx.beginPath();ctx.moveTo(tip-6,by+bh);ctx.lineTo(tip,by+bh+8);ctx.lineTo(tip+6,by+bh);ctx.stroke();
+ ctx.fillStyle='#5a3a22';lines.forEach((l,i)=>ctx.fillText(l,bx+8,by+5+7.5+i*15));
 }
 function drawAlice(t){
  drawPerson(ALICE,PAL_A,t);
@@ -840,7 +889,7 @@ function proximity(){
  const test=(k,b,cont,x,y,r)=>{const d=Math.hypot(x-P.x,y-P.y);if(d<r&&d<bd){bd=d;best={k,b,cont};}};
  if(live){for(const i in YARDS)for(const h of YARDS[i].houses)test(h,YARDS[i].b,h.cont,h.x+h.w/2,h.y+h.h,22);}
  else for(let i=1;i<=6;i++){const b=B[i];test(b,b,null,b.x+b.w/2,b.y+b.h,34);}
- if(live&&secVisible())test(SEC,SEC,SEC.conts[0]||null,SEC.x+SEC.w/2,SEC.y+SEC.h,26);
+ if(live&&secVisible()&&!CONV.on)test(SEC,SEC,SEC.conts[0]||null,SEC.x+SEC.w/2,SEC.y+SEC.h,26);
  const key=best?best.k:null;
  if(key===proxT)return;
  proxT=key;
@@ -869,7 +918,7 @@ function update(dt,t){
  updAnimals(dt);proximity();
  PLOTS.forEach(p=>{const tg=p.unlocked?0:1;if(p.fog!==tg){p.fog+=(tg-p.fog)*Math.min(1,dt*2.6);if(Math.abs(tg-p.fog)<0.01)p.fog=tg;}});
  SEC.sol.w=secVisible()?SEC.w-4:-1;
- updAlice(dt);
+ updAlice(dt);updChat(dt);
  eggT+=dt;if(eggT>6){eggT=0;if(eggs.length<6){const ch=A.filter(a=>a.type==='chicken'&&aState(a)==='up');if(ch.length){const a=ch[Math.random()*ch.length|0];eggs.push({x:a.x+(Math.random()*6-3),y:a.y+2});}}}
  for(let i=eggs.length-1;i>=0;i--){const e=eggs[i];if(Math.hypot(e.x-P.x,e.y-P.y)<9){eggs.splice(i,1);coins+=5;quest('eggs');toast('🥚 Ovo coletado! +5 🪙');}}
  if(!live){S.cpuT+=rr(-8,8);S.cpuT=clamp(S.cpuT,8,92);S.ramT+=rr(-3,3);S.ramT=clamp(S.ramT,35,85);S.netT+=rr(-14,14);S.netT=clamp(S.netT,3,95);}
@@ -976,6 +1025,7 @@ function draw(t){
   ctx.fillStyle='#5a3a22';ctx.fillText(txt,sx+(b.meta?0:6),sy+1);
   if(!b.meta){ctx.fillStyle=col;ctx.beginPath();ctx.arc(sx-w/2+9,sy,4,0,7);ctx.fill();ctx.strokeStyle='#5a3a22';ctx.lineWidth=1;ctx.stroke();}
  }
+ drawBubble(cs);
  ctx.textBaseline='alphabetic';
 }
 let W_=0;
@@ -1142,7 +1192,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.11.3',APP_DATE='24/10/2026';
+const APP_VERSION='1.12.0',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
