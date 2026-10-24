@@ -110,7 +110,6 @@ body:not(.config) .adv{display:none!important}   /* configuração do servidor: 
   <div class="bar hide-s"><i id="b-ram" style="background:#3498db"></i></div>
   <div style="font-size:11px">🥕 <span id="s-dsk"></span>% · 🦆 <span id="s-net"></span> Mb/s</div>
   <div id="credit" style="font-size:11px;display:none;cursor:pointer"></div>
-  <div id="gasto" style="font-size:11px;display:none;cursor:pointer"></div>
   <div style="font-size:10px;margin-top:2px;white-space:nowrap"><span id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</span>&nbsp;<span id="livechip"></span>&nbsp;<span id="cfgbtn" class="adv" title="Servidor" style="cursor:pointer;font-size:12px">⚙️</span></div></div>
 
 <div id="qbtn">📜</div>
@@ -960,7 +959,7 @@ function draw(t){
  if(live)for(const i in YARDS)for(const h of YARDS[i].houses){const n=h.cont.name;
   if(cs>=3.2||h.cont===selCont)houseLb.push({type:'houselabel',name:n.length>14&&h.cont!==selCont?n.slice(0,13)+'…':n,x:h.x+h.w/2,y:h.y-4,w:0,h:0,meta:false,state:h.cont.busy?'restarting':h.cont.ok?'up':'down',cpu:0});}
  if(secVisible()){const g=gastoData&&gastoData.enabled&&!gastoData.error?gastoData:null;
-  houseLb.push({type:'houselabel',name:'🌼 Alice Secretária'+(g&&g.credit_remaining!=null?' · ~US$ '+(g.credit_total-g.credit_spent).toFixed(2).replace('.',','):''),x:SEC.x+SEC.w/2,y:SEC.y-4,w:0,h:0,meta:false,state:secState(),cpu:0});}
+  houseLb.push({type:'houselabel',name:'🌼 Alice Secretária'+(g&&g.credit_remaining!=null?' · US$ '+(g.credit_total-g.credit_spent).toFixed(2).replace('.',','):''),x:SEC.x+SEC.w/2,y:SEC.y-4,w:0,h:0,meta:false,state:secState(),cpu:0});}
  const LB=B.concat(houseLb,PLOTS.filter(p=>p.unlocked&&p.fog<0.3&&p.idea).map(p=>{const st=p.idea.stage||'idea',tt=p.idea.title;
   return{type:'plotlabel',name:STAGES[st].e+' '+(tt.length>20?tt.slice(0,19)+'…':tt),x:p.x+p.w/2,y:p.y+p.h*0.7-40,w:0,h:0,meta:true,state:'up',cpu:0};}));
  for(const b of LB){
@@ -1090,7 +1089,7 @@ function secMoney(){
  if(g.error)return '<div style="font-size:12px">Não consegui ler o banco dela: '+esc(g.error)+'</div>';
  let h=moneyBar('🤖 Gasto do mês: '+usd(g.cost)+' de '+usd(g.budget)+(g.active?'':' (IA desligada)'),g.cost/g.budget*100,g.cost>=g.budget?'#c0392b':g.cost>g.budget*0.7?'#d68910':'#3498db');
  if(g.credit_remaining!=null){const rem=g.credit_total-g.credit_spent,f=rem/g.credit_total;
-  h+=moneyBar('💳 Saldo: '+usd(g.credit_total)+' − '+usd(g.credit_spent)+' = ~'+usd(rem),f*100,f<0.1?'#c0392b':f<0.3?'#d68910':'#27ae60');
+  h+=moneyBar('💳 Saldo: '+usd(g.credit_total)+' − '+usd(g.credit_spent)+' = '+usd(rem),f*100,f<0.1?'#c0392b':f<0.3?'#d68910':'#27ae60');
   if(g.credit_months&&g.credit_months.length)h+='<div style="font-size:10px;opacity:.75;margin-bottom:2px">Gasto contado desde '+esc(g.credit_from||'o início')+': '+g.credit_months.slice(-4).map(m=>esc(m.month)+' '+usd(m.cost)).join(' · ')+'</div>';}
  return h+`<div style="font-size:11px;margin-bottom:4px">${g.calls} chamadas · ${g.tokens_in} tokens de entrada · ${g.tokens_out} de saída</div>`;
 }
@@ -1123,20 +1122,14 @@ function hud(){
  $('s-xp').style.width=(xp/need()*100)+'%';
  const hv=(v,k)=>live&&hostNull[k]?'–':Math.round(v);
  $('s-cpu').textContent=hv(S.cpu,'cpu');$('s-ram').textContent=hv(S.ram,'ram');$('s-dsk').textContent=hv(S.dsk,'disk');$('s-net').textContent=live?(hostNull.net?'–':(S.net<10?S.net.toFixed(1):Math.round(S.net))):Math.round(S.net);
- const g=live&&gastoData&&gastoData.enabled?gastoData:null,ge=$('gasto');
- ge.style.display=g?'block':'none';
- if(g){const usd3=v=>'US$ '+v.toFixed(2).replace('.',',');
-  if(g.error){ge.textContent='🤖 Secretária: sem leitura';ge.style.color='';ge.title=g.error;}
-  else{const f=g.cost/g.budget;ge.textContent='🤖 Secretária '+usd3(g.cost)+' de '+usd3(g.budget)+(g.active?'':' (IA desligada)');
-   ge.style.color=f>=1?'#c0392b':f>0.7?'#d68910':'';
-   ge.title='Gasto estimado da secretária neste mês ('+g.month+'): '+g.calls+' chamadas, '+g.tokens_in+' tokens de entrada e '+g.tokens_out+' de saída. É o mesmo número do /gasto no Telegram.';}}
+ const g=live&&gastoData&&gastoData.enabled?gastoData:null;
  const sec=g&&!g.error&&g.credit_remaining!=null?{remaining:g.credit_total-g.credit_spent,total:g.credit_total,spent:g.credit_spent,month:g.cost,since:g.credit_from||'o início',sec:true}:null;
  const cr=live&&creditData&&creditData.enabled?creditData:sec,ce=$('credit');
  ce.style.display=cr?'block':'none';
  if(cr){const usd=v=>'US$ '+v.toFixed(2).replace('.',',');
   let t,col='';
   if(cr.manual){const d=new Date(cr.as_of),old=Date.now()-d>7*864e5;t='💳 '+usd(cr.remaining)+' (em '+d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+(old?' ⚠️':'')+')';col=old?'#d68910':'';}
-  else if(cr.remaining!=null){t='💳 ~'+usd(cr.remaining)+' restantes';const f=cr.remaining/cr.total;col=f<0.1?'#c0392b':f<0.3?'#d68910':'';}
+  else if(cr.remaining!=null){t='💳 '+usd(cr.remaining)+' restantes';const f=cr.remaining/cr.total;col=f<0.1?'#c0392b':f<0.3?'#d68910':'';}
   else if(cr.spent!=null)t='💳 gasto '+usd(cr.spent)+' (mês '+usd(cr.month)+')';
   else t='💳 sem leitura';
   ce.textContent=t;ce.style.color=col;
@@ -1150,7 +1143,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.11.0',APP_DATE='24/10/2026';
+const APP_VERSION='1.11.1',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
@@ -1318,7 +1311,6 @@ async function pollCredit(){
  finally{creditBusy=false;}
  if(live&&secVisible()!==secLaid){layoutLive();buildAnimals();}
 }
-$n('gasto').onclick=()=>{if(gastoData&&gastoData.enabled&&!gastoData.error)toast($n('gasto').title);};
 $n('credit').onclick=()=>{if(creditData)toast($n('credit').title);};
 setInterval(()=>{if(document.visibilityState==='visible')pollCredit();},300000);
 function pickCont(name){selCont=CONTS.get(name)||null;renderInfo(true);}
