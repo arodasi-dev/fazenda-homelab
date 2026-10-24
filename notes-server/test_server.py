@@ -301,4 +301,72 @@ try:
 finally:
     proc.terminate()
 
+# ---------- gasto da secretária (lê o banco SQLite dela) ----------
+import sqlite3
+sec_dir = tempfile.mkdtemp()
+sec_db = os.path.join(sec_dir, "secretaria.db")
+con = sqlite3.connect(sec_db)
+con.execute("CREATE TABLE usage (month TEXT PRIMARY KEY, calls INTEGER NOT NULL DEFAULT 0, tokens_in INTEGER NOT NULL DEFAULT 0, tokens_out INTEGER NOT NULL DEFAULT 0)")
+con.execute("INSERT INTO usage VALUES (?,?,?,?)", (time.strftime("%Y-%m"), 7, 100000, 20000))
+con.execute("INSERT INTO usage VALUES ('2000-01', 1, 999999999, 999999999)")
+con.commit()
+con.close()
+env5 = dict(env, PORT="8792", SECRETARIA_DB=sec_db, SECRETARIA_BUDGET_USD="1.5")
+proc = subprocess.Popen([sys.executable, os.path.join(HERE, "server.py")], env=env5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+BASE = "http://127.0.0.1:8792"
+try:
+    for _ in range(40):
+        try:
+            if call("GET", "/health")[0] == 200:
+                break
+        except Exception:
+            time.sleep(0.25)
+    code, g = call("GET", "/gasto")
+    # 100000 tokens in x US$1/Mtok + 20000 out x US$5/Mtok = 0.1 + 0.1 = 0.2 (só o mês atual conta)
+    assert code == 200 and g["enabled"] and g["calls"] == 7 and g["cost"] == 0.2 and g["budget"] == 1.5 and g["active"] is True, g
+    assert call("GET", "/gasto", headers={"Content-Type": "application/json"})[0] == 401
+    print("gasto da secretária ok")
+finally:
+    proc.terminate()
+env6 = dict(env, PORT="8791", SECRETARIA_DB=os.path.join(sec_dir, "nao-existe.db"))
+proc = subprocess.Popen([sys.executable, os.path.join(HERE, "server.py")], env=env6, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+BASE = "http://127.0.0.1:8791"
+try:
+    for _ in range(40):
+        try:
+            if call("GET", "/health")[0] == 200:
+                break
+        except Exception:
+            time.sleep(0.25)
+    assert call("GET", "/gasto")[1] == {"enabled": False}
+    print("sem banco da secretária ok")
+finally:
+    proc.terminate()
+
+# ---------- saldo digitado à mão (sem chave de administrador) ----------
+env4 = dict(env, PORT="8793")
+env4.pop("ANTHROPIC_ADMIN_KEY", None)
+env4["NOTES_DIR"] = tempfile.mkdtemp()
+proc = subprocess.Popen([sys.executable, os.path.join(HERE, "server.py")], env=env4, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+BASE = "http://127.0.0.1:8793"
+try:
+    for _ in range(40):
+        try:
+            if call("GET", "/health")[0] == 200:
+                break
+        except Exception:
+            time.sleep(0.25)
+    assert call("GET", "/credit")[1] == {"enabled": False}
+    code, r = call("PUT", "/credit", {"remaining": 35.2})
+    assert code == 200 and r["remaining"] == 35.2 and r["manual"] is True and r["as_of"].endswith("Z"), r
+    assert call("GET", "/credit")[1]["remaining"] == 35.2
+    assert call("PUT", "/credit", {"remaining": -1})[0] == 400
+    assert call("PUT", "/credit", {"remaining": "abc"})[0] == 400
+    assert call("PUT", "/credit", {"x": 1})[0] == 400
+    assert call("PUT", "/credit", {"remaining": 5}, headers={"Content-Type": "application/json"})[0] == 401
+    assert call("GET", "/notes")[1] == []   # o arquivo do saldo não aparece como nota
+    print("saldo manual ok")
+finally:
+    proc.terminate()
+
 print("TUDO OK")

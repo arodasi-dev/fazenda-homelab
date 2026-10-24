@@ -32,7 +32,13 @@ services:
       ANTHROPIC_ADMIN_KEY: ${ANTHROPIC_ADMIN_KEY:-}
       CREDIT_TOTAL_USD: ${CREDIT_TOTAL_USD:-0}
       CREDIT_SINCE: ${CREDIT_SINCE:-}
+      # gasto da secretária (lido do banco dela, somente leitura)
+      SECRETARIA_BUDGET_USD: ${SECRETARIA_BUDGET_USD:-1.5}
+      SECRETARIA_PRICE_IN_PER_MTOK: ${SECRETARIA_PRICE_IN_PER_MTOK:-1.0}
+      SECRETARIA_PRICE_OUT_PER_MTOK: ${SECRETARIA_PRICE_OUT_PER_MTOK:-5.0}
     volumes:
       - ./notas:/data
+      # pasta "data" da secretária (ex.: /home/isadora/secretaria/data); sem isso fica desligado
+      - ${SECRETARIA_DATA:-./vazio}:/secretaria:ro
     depends_on:
       - fazenda-docker-proxy

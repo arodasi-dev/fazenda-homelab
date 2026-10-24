@@ -110,6 +110,7 @@ body:not(.config) .adv{display:none!important}   /* configuração do servidor: 
   <div class="bar hide-s"><i id="b-ram" style="background:#3498db"></i></div>
   <div style="font-size:11px">🥕 <span id="s-dsk"></span>% · 🦆 <span id="s-net"></span> Mb/s</div>
   <div id="credit" style="font-size:11px;display:none;cursor:pointer"></div>
+  <div id="gasto" style="font-size:11px;display:none;cursor:pointer"></div>
   <div style="font-size:10px;margin-top:2px;white-space:nowrap"><span id="ver" title="Toque para buscar a versão mais nova">🏷️ v… ↻</span>&nbsp;<span id="livechip"></span>&nbsp;<span id="cfgbtn" class="adv" title="Servidor" style="cursor:pointer;font-size:12px">⚙️</span></div></div>
 
 <div id="qbtn">📜</div>
@@ -135,6 +136,10 @@ body:not(.config) .adv{display:none!important}   /* configuração do servidor: 
    <input id="cfgurl" type="url" placeholder="https://meuservidor.tailnet.ts.net" autocapitalize="off" autocorrect="off" spellcheck="false">
    <input id="cfgtoken" type="password" placeholder="Token" autocapitalize="off" autocorrect="off" spellcheck="false">
    <button id="csave">Salvar</button> <button id="ctest">Testar conexão</button>
+   <hr style="margin:8px 0;border:0;border-top:1px solid #b98355">
+   <b>Saldo da API da Anthropic</b> (veja em Gastos no Console)
+   <input id="cfgcredit" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Saldo atual em US$ (ex.: 35.20)">
+   <button id="ccredit">Salvar saldo</button>
   </div>
   <div id="nbody">
    <div id="nlist"></div>
@@ -1027,15 +1032,23 @@ function hud(){
  $('s-xp').style.width=(xp/need()*100)+'%';
  const hv=(v,k)=>live&&hostNull[k]?'–':Math.round(v);
  $('s-cpu').textContent=hv(S.cpu,'cpu');$('s-ram').textContent=hv(S.ram,'ram');$('s-dsk').textContent=hv(S.dsk,'disk');$('s-net').textContent=live?(hostNull.net?'–':(S.net<10?S.net.toFixed(1):Math.round(S.net))):Math.round(S.net);
+ const g=live&&gastoData&&gastoData.enabled?gastoData:null,ge=$('gasto');
+ ge.style.display=g?'block':'none';
+ if(g){const usd3=v=>'US$ '+v.toFixed(2).replace('.',',');
+  if(g.error){ge.textContent='🤖 Secretária: sem leitura';ge.style.color='';ge.title=g.error;}
+  else{const f=g.cost/g.budget;ge.textContent='🤖 Secretária '+usd3(g.cost)+' de '+usd3(g.budget)+(g.active?'':' (IA desligada)');
+   ge.style.color=f>=1?'#c0392b':f>0.7?'#d68910':'';
+   ge.title='Gasto estimado da secretária neste mês ('+g.month+'): '+g.calls+' chamadas, '+g.tokens_in+' tokens de entrada e '+g.tokens_out+' de saída. É o mesmo número do /gasto no Telegram.';}}
  const cr=live&&creditData&&creditData.enabled?creditData:null,ce=$('credit');
  ce.style.display=cr?'block':'none';
  if(cr){const usd=v=>'US$ '+v.toFixed(2).replace('.',',');
   let t,col='';
-  if(cr.remaining!=null){t='💳 ~'+usd(cr.remaining)+' restantes';const f=cr.remaining/cr.total;col=f<0.1?'#c0392b':f<0.3?'#d68910':'';}
+  if(cr.manual){const d=new Date(cr.as_of),old=Date.now()-d>7*864e5;t='💳 '+usd(cr.remaining)+' (em '+d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+(old?' ⚠️':'')+')';col=old?'#d68910':'';}
+  else if(cr.remaining!=null){t='💳 ~'+usd(cr.remaining)+' restantes';const f=cr.remaining/cr.total;col=f<0.1?'#c0392b':f<0.3?'#d68910':'';}
   else if(cr.spent!=null)t='💳 gasto '+usd(cr.spent)+' (mês '+usd(cr.month)+')';
   else t='💳 sem leitura';
   ce.textContent=t;ce.style.color=col;
-  ce.title=cr.error?('Erro: '+cr.error):('Estimativa: comprado '+(cr.total!=null?usd(cr.total):'?')+' − gasto '+usd(cr.spent||0)+' desde '+cr.since+'. Priority Tier e impostos não entram.');}
+  ce.title=cr.manual?('Saldo que você informou em '+new Date(cr.as_of).toLocaleDateString('pt-BR')+'. Não atualiza sozinho: confira em Gastos no Console.'):cr.error?('Erro: '+cr.error):('Estimativa: comprado '+(cr.total!=null?usd(cr.total):'?')+' − gasto '+usd(cr.spent||0)+' desde '+cr.since+'. Priority Tier e impostos não entram.');}
  $('livechip').textContent=live?(dockerBad?'🟡 sem Docker':'🟢 ao vivo'):(cfg.url&&cfg.token?'🔴 sem conexão':'🎮 demo');
  $('b-cpu').style.width=S.cpu+'%';$('b-ram').style.width=S.ram+'%';
  $('qlist').innerHTML=quests.filter(questOn).map(q=>`<div class="q ${q.done?'done':''}">${q.done?'☑':'☐'} ${q.t}${q.goal?` (${Math.min(q.n,q.goal)}/${q.goal})`:''}</div>`).join('');
@@ -1045,7 +1058,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.8.0',APP_DATE='24/10/2026';
+const APP_VERSION='1.9.0',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
@@ -1111,6 +1124,9 @@ const readCfg=()=>({url:$n('cfgurl').value.trim().replace(/\/+$/,''),token:$n('c
 const netMsg=e=>e.name==='AbortError'?'tempo esgotado':e instanceof TypeError?'não consegui alcançar o servidor. O endereço precisa ser HTTPS e o Tailscale precisa estar ligado.':e.message;
 $n('csave').onclick=()=>{cfg=readCfg();
  try{localStorage.setItem(CK,JSON.stringify(cfg));}catch(e){}toast('⚙️ Servidor salvo');syncNotes();pollLive();};
+$n('ccredit').onclick=async()=>{cfg=readCfg();const v=parseFloat($n('cfgcredit').value);
+ if(!(v>=0)){toast('Digite o saldo em US$ (ex.: 35.20).');return;}
+ try{await api('/credit','PUT',{remaining:v});toast('💳 Saldo salvo');creditData=null;pollCredit();}catch(e){toast('❌ '+netMsg(e));}};
 $n('ctest').onclick=async()=>{cfg=readCfg();
  if(!cfg.url||!cfg.token){toast('Preencha a URL e o token.');return;}
  try{const r=await api('/status');toast('✅ Conectado! '+(r.containers?r.containers.length+' container(s) lidos.':'servidor ok, mas o Docker não respondeu.'));}catch(e){toast('❌ Falhou: '+netMsg(e));}};
@@ -1201,12 +1217,14 @@ async function showLogs(c){
  catch(e){el.textContent='Não consegui ler os logs: '+e.message;}
 }
 // crédito da API da Anthropic (o servidor soma o gasto; o saldo é uma estimativa)
-let creditData=null,creditBusy=false;
+let creditData=null,gastoData=null,creditBusy=false;
 async function pollCredit(){
  if(!live||creditBusy)return;creditBusy=true;
  try{creditData=await api('/credit');}catch(e){setTimeout(pollCredit,30000);}
+ try{gastoData=await api('/gasto');}catch(e){}
  finally{creditBusy=false;}
 }
+$n('gasto').onclick=()=>{if(gastoData&&gastoData.enabled&&!gastoData.error)toast($n('gasto').title);};
 $n('credit').onclick=()=>{if(creditData)toast($n('credit').title);};
 setInterval(()=>{if(document.visibilityState==='visible')pollCredit();},300000);
 function pickCont(name){selCont=CONTS.get(name)||null;renderInfo(true);}

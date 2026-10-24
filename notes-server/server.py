@@ -24,6 +24,12 @@ Crédito da API da Anthropic (opcional; só funciona em contas de organização)
   ANTHROPIC_ADMIN_KEY  chave de administrador (sk-ant-admin...). Fica só aqui, nunca vai para o app.
   CREDIT_TOTAL_USD     quanto de crédito você comprou (ex.: 50)
   CREDIT_SINCE         data da compra, AAAA-MM-DD: o gasto é somado desde esse dia
+
+Gasto da secretária (o mesmo número do /gasto do Telegram), lido do banco dela:
+  SECRETARIA_DB                 caminho do banco dentro do container (padrão: /secretaria/secretaria.db)
+  SECRETARIA_BUDGET_USD         limite mensal (o mesmo LLM_MONTHLY_BUDGET_USD dela; padrão 1.5)
+  SECRETARIA_PRICE_IN_PER_MTOK  preço por milhão de tokens de entrada (padrão 1.0)
+  SECRETARIA_PRICE_OUT_PER_MTOK preço por milhão de tokens de saída (padrão 5.0)
 """
 import hmac
 import http.client
@@ -31,6 +37,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -43,7 +50,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, unquote, quote, parse_qs
 
-VERSION = "1.8.0"
+VERSION = "1.9.0"
 NOTES_DIR = Path(os.environ.get("NOTES_DIR", "./notas"))
 TOKEN = os.environ.get("NOTES_TOKEN", "")
 ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGIN", "https://arodasi-dev.github.io").split(",") if o.strip()]
@@ -59,6 +66,10 @@ CREDIT_TOTAL = float(os.environ.get("CREDIT_TOTAL_USD", "0") or 0)
 CREDIT_SINCE = os.environ.get("CREDIT_SINCE", "").strip()
 API_BASE = os.environ.get("ANTHROPIC_API_BASE", "https://api.anthropic.com").rstrip("/")
 CREDIT_TTL = 300  # a API de custos aceita ~1 consulta por minuto; 5 min sobra
+SEC_DB = os.environ.get("SECRETARIA_DB", "/secretaria/secretaria.db")
+SEC_BUDGET = float(os.environ.get("SECRETARIA_BUDGET_USD", "1.5") or 1.5)
+SEC_PRICE_IN = float(os.environ.get("SECRETARIA_PRICE_IN_PER_MTOK", "1.0") or 1.0)
+SEC_PRICE_OUT = float(os.environ.get("SECRETARIA_PRICE_OUT_PER_MTOK", "5.0") or 5.0)
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -331,9 +342,40 @@ def fetch_spend(since: str):
     return round(total / 100, 2), round(month / 100, 2)
 
 
-def credit_status():
-    if not ADMIN_KEY:
+def secretaria_gasto():
+    """Mesma conta do /gasto da secretária: tokens do mês × preço, contra o limite mensal."""
+    if not os.path.exists(SEC_DB):
         return {"enabled": False}
+    month = datetime.now().strftime("%Y-%m")
+    try:
+        con = sqlite3.connect(f"file:{SEC_DB}?mode=ro", uri=True, timeout=3)
+        try:
+            row = con.execute("SELECT calls, tokens_in, tokens_out FROM usage WHERE month=?", (month,)).fetchone()
+        finally:
+            con.close()
+    except Exception as e:
+        return {"enabled": True, "error": "não consegui ler o banco da secretária: " + type(e).__name__}
+    calls, tin, tout = row if row else (0, 0, 0)
+    cost = tin * SEC_PRICE_IN / 1e6 + tout * SEC_PRICE_OUT / 1e6
+    return {"enabled": True, "month": month, "calls": calls, "tokens_in": tin, "tokens_out": tout,
+            "cost": round(cost, 4), "budget": SEC_BUDGET, "active": cost < SEC_BUDGET}
+
+
+def manual_path():
+    return NOTES_DIR / ".credito.json"
+
+
+def read_manual():
+    try:
+        m = json.loads(manual_path().read_text(encoding="utf-8"))
+        return {"enabled": True, "manual": True, "remaining": float(m["remaining"]), "as_of": str(m["as_of"])}
+    except Exception:
+        return None
+
+
+def credit_status():
+    if not ADMIN_KEY:  # sem chave de administrador: usa o saldo que você digitou no app
+        return read_manual() or {"enabled": False}
     with CREDIT_LOCK:
         if CREDIT["data"] is not None and time.time() - CREDIT["t"] < CREDIT_TTL:
             return CREDIT["data"]
@@ -441,6 +483,8 @@ class Handler(BaseHTTPRequestHandler):
                                     "version": VERSION})
         if parts == ["credit"]:
             return self._send(200, credit_status())
+        if parts == ["gasto"]:
+            return self._send(200, secretaria_gasto())
         if len(parts) == 3 and parts[0] == "containers" and parts[2] == "logs":
             c = known_container(parts[1])
             if not c:
@@ -495,6 +539,22 @@ class Handler(BaseHTTPRequestHandler):
         parts, _ = self._route()
         if not self._authed():
             return self._send(401, {"error": "token inválido"})
+        if parts == ["credit"]:   # saldo digitado à mão
+            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                if not 0 < length <= 1000:
+                    raise ValueError
+                remaining = float(json.loads(self.rfile.read(length).decode("utf-8"))["remaining"])
+                if not 0 <= remaining <= 1_000_000:
+                    raise ValueError
+            except Exception:
+                return self._send(400, {"error": "envie {\"remaining\": número entre 0 e 1000000}"})
+            with LOCK:
+                fd, tmp = tempfile.mkstemp(dir=NOTES_DIR, suffix=".tmp")
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump({"remaining": round(remaining, 2), "as_of": now_iso()}, f)
+                os.replace(tmp, manual_path())
+            return self._send(200, read_manual())
         if not (len(parts) == 2 and parts[0] == "notes" and ID_RE.match(parts[1])):
             return self._send(404, {"error": "rota desconhecida"})
         length = int(self.headers.get("Content-Length") or 0)

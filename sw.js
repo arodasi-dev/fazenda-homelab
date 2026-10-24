@@ -1,5 +1,5 @@
 // Cache simples para o app funcionar offline depois da primeira visita.
-const CACHE = 'fazenda-v1.8.0';
+const CACHE = 'fazenda-v1.9.0';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

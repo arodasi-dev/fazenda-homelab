@@ -68,6 +68,27 @@ Por padrão a fazenda **só observa**. Para reiniciar um container tocando nele,
 
 Atenção: o docker-socket-proxy só aceita reinício com `POST=1`, e isso também permite a ele **criar containers**, o que na prática dá controle total do servidor para quem alcançar a porta `2375`. Ela só escuta em `127.0.0.1` e o servidor da fazenda exige o token, mas só ligue se aceitar esse risco.
 
+## Gasto da secretária (o mesmo número do `/gasto`)
+
+A secretária do Telegram guarda quantas chamadas e tokens usou no mês no banco dela (`data/secretaria.db`). O servidor da fazenda lê esse banco **só para leitura** e faz a mesma conta do `/gasto`: tokens × preço, contra o limite mensal. O painel mostra `🤖 Secretária US$ 1,10 de US$ 1,50`, em amarelo acima de 70% e vermelho no limite.
+
+Para ligar, no `.env` do servidor da fazenda:
+
+```
+SECRETARIA_DATA=/home/SEU_USUARIO/secretaria/data
+SECRETARIA_BUDGET_USD=1.5
+SECRETARIA_PRICE_IN_PER_MTOK=1.0
+SECRETARIA_PRICE_OUT_PER_MTOK=5.0
+```
+
+`SECRETARIA_DATA` é a pasta `data` da secretária, a mesma que o compose dela monta em `/data`. Os três valores seguintes devem ser **iguais** aos da secretária (`LLM_MONTHLY_BUDGET_USD`, `LLM_PRICE_IN_PER_MTOK` e `LLM_PRICE_OUT_PER_MTOK` no `.env` dela). Depois, `docker compose up -d`.
+
+Isso mostra só o que a **secretária** gastou, não o crédito total da conta da API. O mês usa o horário do servidor, então na virada do mês pode haver diferença de algumas horas em relação ao Telegram.
+
+## Saldo da API digitado à mão (sem chave de administrador)
+
+Se a sua conta é individual, não há como ler o saldo automaticamente. Abra o app com `?config`, digite o saldo que você vê em **Gastos** no Console e toque em **Salvar saldo**. O painel mostra `💳 US$ 35,20 (em 24/10)`, com um aviso ⚠️ quando o valor tem mais de 7 dias.
+
 ## Crédito da API da Anthropic (opcional)
 
 A Anthropic **não tem uma API que devolve o saldo restante**. O que existe é a [API de custos](https://platform.claude.com/docs/en/manage-claude/usage-cost-api), que informa quanto foi **gasto**. O servidor soma esse gasto desde a data da sua compra e o app mostra uma **estimativa**: `~US$ 35,00 restantes` (comprado − gasto).
@@ -109,6 +130,8 @@ Todas as rotas, menos `/health`, pedem `Authorization: Bearer <token>`.
 | GET | `/health` | testa se está no ar |
 | GET | `/status` | host (CPU, RAM, disco, rede, uptime) e containers |
 | GET | `/credit` | gasto e saldo estimado da API da Anthropic (se configurado) |
+| PUT | `/credit` | guarda o saldo digitado à mão `{remaining}` |
+| GET | `/gasto` | gasto do mês da secretária (se configurado) |
 | GET | `/containers/<nome>/logs?tail=25` | últimas linhas de log |
 | POST | `/containers/<nome>/restart` | reinicia (só com `ENABLE_RESTART=1`) |
 | GET | `/notes` | lista todas as ideias |
