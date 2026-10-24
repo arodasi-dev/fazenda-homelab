@@ -63,6 +63,7 @@ Com o servidor da fazenda ligado ([`notes-server/`](notes-server/README.md)), o 
 - Quando a personagem chega perto de uma casinha, o painel dela abre sozinho (como se você tivesse tocado) e fecha ao se afastar.
 - Container parado ou não saudável deixa a casinha cinza e o bichinho doente 🤒. Tocando na casinha você vê CPU, memória e os **logs**, e o nome aparece ao dar zoom.
 - Se você ligar o crédito da API da Anthropic (veja [`notes-server/`](notes-server/README.md)), o painel mostra uma **estimativa do saldo restante** (`💳 ~US$ 35,00 restantes`): comprado − gasto lido da API de custos.
+- A **secretária** do Telegram tem uma **casinha lilás só dela**, ao lado da casa grande. Ao chegar perto (ou tocar), o painel mostra o gasto do mês contra o limite, o **saldo estimado** (crédito comprado − gasto acumulado), as chamadas e tokens, e o estado do container dela. Veja como ligar em [`notes-server/`](notes-server/README.md#gasto-da-secretária-o-mesmo-número-do-gasto).
 - O painel mostra `🟢 ao vivo`, `🔴 sem conexão` ou `🎮 demonstração`. Sem servidor configurado (⚙️), o app roda com dados simulados.
 - Na versão ao vivo, as ações "Backup", "Atualizar" e "Limpar" ficam desativadas, porque ainda não fazem nada de verdade no servidor.
 
