@@ -1089,8 +1089,7 @@ function secMoney(){
  if(g.error)return '<div style="font-size:12px">Não consegui ler o banco dela: '+esc(g.error)+'</div>';
  let h=moneyBar('🤖 Gasto do mês: '+usd(g.cost)+' de '+usd(g.budget)+(g.active?'':' (IA desligada)'),g.cost/g.budget*100,g.cost>=g.budget?'#c0392b':g.cost>g.budget*0.7?'#d68910':'#3498db');
  if(g.credit_remaining!=null){const rem=g.credit_total-g.credit_spent,f=rem/g.credit_total;
-  h+=moneyBar('💳 Saldo: '+usd(g.credit_total)+' − '+usd(g.credit_spent)+' = '+usd(rem),f*100,f<0.1?'#c0392b':f<0.3?'#d68910':'#27ae60');
-  if(g.credit_months&&g.credit_months.length)h+='<div style="font-size:10px;opacity:.75;margin-bottom:2px">Gasto contado desde '+esc(g.credit_from||'o início')+': '+g.credit_months.slice(-4).map(m=>esc(m.month)+' '+usd(m.cost)).join(' · ')+'</div>';}
+  h+=moneyBar('💳 Saldo: '+usd(rem),f*100,f<0.1?'#c0392b':f<0.3?'#d68910':'#27ae60');}
  return h+`<div style="font-size:11px;margin-bottom:4px">${g.calls} chamadas · ${g.tokens_in} tokens de entrada · ${g.tokens_out} de saída</div>`;
 }
 function renderInfo(full){
@@ -1143,7 +1142,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.11.2',APP_DATE='24/10/2026';
+const APP_VERSION='1.11.3',APP_DATE='24/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
