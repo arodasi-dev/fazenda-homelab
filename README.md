@@ -67,6 +67,19 @@ Com o servidor da fazenda ligado ([`notes-server/`](notes-server/README.md)), o 
 - O painel mostra `🟢 ao vivo`, `🔴 sem conexão` ou `🎮 demonstração`. Sem servidor configurado (⚙️), o app roda com dados simulados.
 - Na versão ao vivo, as ações "Backup", "Atualizar" e "Limpar" ficam desativadas, porque ainda não fazem nada de verdade no servidor.
 
+## Fliperama (joguinhos)
+
+No fim da estrada, no lado direito da fazenda, fica a casinha **Fliperama** (placa "JOGOS"). Chegando perto dela (ou tocando), abre a caixinha com as moedas ganhas, o recorde de cada jogo e os botões para jogar. Cada jogo abre em tela cheia dentro da fazenda; `Esc` ou **Voltar** volta para o mapa.
+
+| Jogo | Como é | Pontos e moedas |
+|---|---|---|
+| 🐍 Cobrinha na horta | deslize, setas/WASD ou botões; a cenoura vale 1 moeda e a dourada 3 | cenouras colhidas |
+| 🔨 Acerte a toupeira | 30 s; cada toupeira traz um erro (`timeout`, `404`, `500`); a `500` vale 2 | 1 moeda a cada 3 pontos |
+| 🃏 Jogo da memória | 4 pares; menos tentativas e menos tempo rendem mais pontos | 1 a 3 moedas |
+| 🐔 Pega-galinha | 45 s; quanto mais você pega, mais galinhas e mais rápidas | 1 moeda a cada 3 pegas |
+
+As moedas também entram no 🪙 do painel da fazenda. Com o servidor ligado, o placar e as moedas ficam num SQLite único no homeserver (veja [`notes-server/`](notes-server/README.md#placar-do-fliperama)); sem servidor, ficam no aparelho e são enviados quando ele voltar. Os jogos também abrem sozinhos em `games/<nome>.html`.
+
 ## Configuração do servidor
 
 O endereço e o token do servidor são configurados uma vez e ficam escondidos. Para mudar, abra o app com `?config` no final do endereço (por exemplo `.../fazenda-homelab/?config`): aparece o ⚙️ para editar.

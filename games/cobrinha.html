@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Cobrinha na horta</title>
+<link rel="stylesheet" href="jogos.css">
+<style>
+.pad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(2,58px);gap:8px;justify-content:center;margin-top:16px}
+.pad button{font:inherit;font-size:22px;background:var(--pad);color:var(--padink);border:1px solid var(--line);border-radius:14px;cursor:pointer;touch-action:manipulation}
+.pad button:active{background:var(--btn);color:var(--btnink)}
+.pad .u{grid-column:2;grid-row:1}
+.pad .l{grid-column:1;grid-row:2}
+.pad .d{grid-column:2;grid-row:2}
+.pad .r{grid-column:3;grid-row:2}
+canvas{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<main class="app">
+  <h1>Cobrinha na horta</h1>
+  <div class="stats">
+    <div class="stat"><span>Cenouras</span><b id="score">0</b></div>
+    <div class="stat"><span>Recorde</span><b id="best">0</b></div>
+    <div class="stat"><span>Moedas</span><b id="coins">0</b></div>
+  </div>
+  <div class="board sq" id="board">
+    <canvas id="cv" aria-label="Tabuleiro do jogo"></canvas>
+    <div class="overlay" id="ov">
+      <h2 id="ovTitle">Pronta pra colher?</h2>
+      <p id="ovText">Deslize na horta, use as setas ou os botões abaixo.</p>
+      <button class="go" id="go">Começar</button>
+    </div>
+  </div>
+  <div class="pad" aria-label="Controles">
+    <button class="u" data-d="up" aria-label="Cima">↑</button>
+    <button class="l" data-d="left" aria-label="Esquerda">←</button>
+    <button class="d" data-d="down" aria-label="Baixo">↓</button>
+    <button class="r" data-d="right" aria-label="Direita">→</button>
+  </div>
+  <p class="hint">Cenoura vale 1 moeda. A dourada vale 3.<br>Bater na cerca ou em você mesma encerra a partida.</p>
+</main>
+
+<script src="bridge.js"></script>
+<script>
+(function(){
+  var N = 16;
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var board = document.getElementById('board');
+  var ov = document.getElementById('ov');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var goBtn = document.getElementById('go');
+  var elScore = document.getElementById('score');
+  var elBest = document.getElementById('best');
+  var elCoins = document.getElementById('coins');
+
+  // recorde e moedas vêm da fazenda (ou do localStorage, se o jogo estiver aberto sozinho)
+  var best = 0, base = 0, alive = false;
+  FZ.init('cobrinha', function(st){ best = st.melhor; base = st.moedas; updateHud(); });
+
+  var DIRS = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+  var snake, dir, queue, food, score, runCoins, running, timer, cell, dpr, prevBest;
+
+  function fit(){
+    dpr = window.devicePixelRatio || 1;
+    var w = board.clientWidth;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(w * dpr);
+    cell = cv.width / N;
+    draw();
+  }
+
+  function reset(){
+    snake = [{x:5,y:8},{x:4,y:8},{x:3,y:8}];
+    dir = DIRS.right;
+    queue = [];
+    score = 0;
+    runCoins = 0;
+    placeFood();
+    updateHud();
+  }
+
+  function placeFood(){
+    var free = [];
+    for (var x = 0; x < N; x++) for (var y = 0; y < N; y++) {
+      if (!snake.some(function(s){ return s.x === x && s.y === y; })) free.push({x:x,y:y});
+    }
+    if (!free.length) { food = null; return; }
+    var f = free[Math.floor(Math.random() * free.length)];
+    f.gold = Math.random() < 0.1;
+    food = f;
+  }
+
+  function updateHud(){
+    elScore.textContent = score || 0;
+    elBest.textContent = Math.max(best, score || 0);
+    elCoins.textContent = base + (alive ? runCoins : 0);
+  }
+
+  function setDir(name){
+    var d = DIRS[name];
+    var last = queue.length ? queue[queue.length - 1] : dir;
+    if (d.x === -last.x && d.y === -last.y) return;
+    if (d.x === last.x && d.y === last.y) return;
+    if (queue.length < 2) queue.push(d);
+  }
+
+  function speed(){ return Math.max(75, 150 - score * 3); }
+
+  function tick(){
+    if (!running) return;
+    if (queue.length) dir = queue.shift();
+    var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+    var willEat = food && head.x === food.x && head.y === food.y;
+    var body = willEat ? snake : snake.slice(0, -1);
+    var hit = head.x < 0 || head.y < 0 || head.x >= N || head.y >= N ||
+      body.some(function(s){ return s.x === head.x && s.y === head.y; });
+    if (hit) { end(); return; }
+    snake.unshift(head);
+    if (willEat) {
+      score += 1;
+      runCoins += food.gold ? 3 : 1;
+      placeFood();
+      updateHud();
+    } else {
+      snake.pop();
+    }
+    draw();
+    timer = setTimeout(tick, speed());
+  }
+
+  function start(){
+    reset();
+    prevBest = best;
+    alive = true;
+    running = true;
+    ov.hidden = true;
+    goBtn.dataset.resume = '';
+    draw();
+    clearTimeout(timer);
+    timer = setTimeout(tick, speed());
+  }
+
+  function end(){
+    running = false;
+    alive = false;
+    clearTimeout(timer);
+    draw();
+    var record = score > prevBest;
+    ovTitle.textContent = record ? 'Novo recorde!' : 'Fim de jogo';
+    ovText.textContent = 'Você colheu ' + score + (score === 1 ? ' cenoura' : ' cenouras') +
+      ' e ganhou ' + runCoins + (runCoins === 1 ? ' moeda.' : ' moedas.');
+    goBtn.textContent = 'Jogar de novo';
+    ov.hidden = false;
+    // mostra o total certo já agora; a fazenda confirma em seguida
+    base += runCoins;
+    best = Math.max(best, score);
+    updateHud();
+    if (score > 0 || runCoins > 0) FZ.result(score, runCoins);
+  }
+
+  function pause(){
+    if (!running) return;
+    running = false;
+    clearTimeout(timer);
+    ovTitle.textContent = 'Pausado';
+    ovText.textContent = 'A horta espera por você.';
+    goBtn.textContent = 'Continuar';
+    goBtn.dataset.resume = '1';
+    ov.hidden = false;
+  }
+
+  function roundRect(x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawCarrot(c, gold){
+    var cx = (c.x + 0.5) * cell, cy = (c.y + 0.5) * cell, u = cell;
+    ctx.fillStyle = '#3F8A1E';
+    ctx.beginPath(); ctx.ellipse(cx - u*0.1, cy - u*0.36, u*0.07, u*0.17, -0.5, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + u*0.1, cy - u*0.36, u*0.07, u*0.17, 0.5, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx, cy - u*0.4, u*0.06, u*0.18, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = gold ? '#F2C230' : '#EE7A2B';
+    ctx.beginPath();
+    ctx.moveTo(cx - u*0.27, cy - u*0.24);
+    ctx.quadraticCurveTo(cx, cy - u*0.34, cx + u*0.27, cy - u*0.24);
+    ctx.lineTo(cx, cy + u*0.4);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = gold ? '#B8860B' : '#B8531A';
+    ctx.lineWidth = Math.max(1, u * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(cx - u*0.12, cy - u*0.08); ctx.lineTo(cx - u*0.02, cy - u*0.08);
+    ctx.moveTo(cx + u*0.02, cy + u*0.08); ctx.lineTo(cx + u*0.12, cy + u*0.08);
+    ctx.stroke();
+  }
+
+  function draw(){
+    if (!cell) return;
+    for (var x = 0; x < N; x++) for (var y = 0; y < N; y++) {
+      ctx.fillStyle = (x + y) % 2 ? '#7E5130' : '#8A5A36';
+      ctx.fillRect(x * cell, y * cell, cell + 1, cell + 1);
+    }
+    ctx.strokeStyle = 'rgba(40,22,8,.18)';
+    ctx.lineWidth = Math.max(1, cell * 0.05);
+    for (var r = 0; r < N; r++) {
+      ctx.beginPath();
+      ctx.moveTo(0, (r + 0.5) * cell);
+      ctx.lineTo(cv.width, (r + 0.5) * cell);
+      ctx.stroke();
+    }
+    if (food) drawCarrot(food, food.gold);
+    if (!snake) return;
+    var inset = cell * 0.08;
+    for (var i = snake.length - 1; i >= 0; i--) {
+      var s = snake[i];
+      ctx.fillStyle = i === 0 ? '#2E6B14' : (i % 2 ? '#5BAA2C' : '#4E9A24');
+      roundRect(s.x * cell + inset, s.y * cell + inset, cell - inset * 2, cell - inset * 2, cell * 0.28);
+      ctx.fill();
+    }
+    var h = snake[0];
+    var hx = (h.x + 0.5) * cell, hy = (h.y + 0.5) * cell;
+    var px = -dir.y, py = dir.x;
+    var off = cell * 0.2, fwd = cell * 0.14;
+    [-1, 1].forEach(function(sgn){
+      var ex = hx + px * off * sgn + dir.x * fwd;
+      var ey = hy + py * off * sgn + dir.y * fwd;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(ex, ey, cell * 0.12, 0, 7); ctx.fill();
+      ctx.fillStyle = '#1B2A0B';
+      ctx.beginPath(); ctx.arc(ex + dir.x * cell * 0.03, ey + dir.y * cell * 0.03, cell * 0.06, 0, 7); ctx.fill();
+    });
+    if (running) {
+      ctx.strokeStyle = '#E24B4A';
+      ctx.lineWidth = Math.max(2, cell * 0.07);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(hx + dir.x * cell * 0.42, hy + dir.y * cell * 0.42);
+      ctx.lineTo(hx + dir.x * cell * 0.62, hy + dir.y * cell * 0.62);
+      ctx.stroke();
+    }
+  }
+
+  goBtn.addEventListener('click', function(){
+    if (goBtn.dataset.resume === '1') {
+      goBtn.dataset.resume = '';
+      running = true;
+      ov.hidden = true;
+      timer = setTimeout(tick, speed());
+    } else {
+      start();
+    }
+  });
+
+  var keymap = { ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right', w:'up', s:'down', a:'left', d:'right', W:'up', S:'down', A:'left', D:'right' };
+  window.addEventListener('keydown', function(e){
+    if (keymap[e.key]) { e.preventDefault(); if (running) setDir(keymap[e.key]); }
+    else if ((e.key === ' ' || e.key === 'Enter') && !ov.hidden) {
+      // tira o foco do botão: senão o espaço/enter ainda "clica" nele ao soltar a tecla e a partida recomeça
+      e.preventDefault(); goBtn.blur(); goBtn.click();
+    }
+    else if (e.key === ' ' && running) { e.preventDefault(); pause(); }
+  });
+  window.addEventListener('keyup', function(e){ if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.pad button'), function(b){
+    b.addEventListener('click', function(){ if (running) setDir(b.dataset.d); });
+  });
+
+  // deslizar: vira assim que o dedo anda um pouco (não espera soltar)
+  var tx = 0, ty = 0;
+  board.addEventListener('touchstart', function(e){
+    var t = e.touches[0]; tx = t.clientX; ty = t.clientY;
+  }, { passive: true });
+  board.addEventListener('touchmove', function(e){
+    e.preventDefault();
+    if (!running) return;
+    var t = e.touches[0];
+    var dx = t.clientX - tx, dy = t.clientY - ty;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
+    if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 'right' : 'left');
+    else setDir(dy > 0 ? 'down' : 'up');
+    tx = t.clientX; ty = t.clientY;
+  }, { passive: false });
+
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) pause(); });
+  window.addEventListener('resize', fit);
+
+  reset();
+  fit();
+})();
+</script>
+</body>
+</html>

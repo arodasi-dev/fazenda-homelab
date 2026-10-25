@@ -63,6 +63,14 @@ body.touch #help{display:none}
  #joy{bottom:calc(72px + var(--bot));width:116px;height:116px}
 }
 #livechip{cursor:pointer}
+#arcade{position:fixed;inset:0;z-index:60;background:#3a2a1a;display:flex;flex-direction:column}
+#arcade.hidden{display:none}
+#arcade,#arcade *{touch-action:manipulation}
+#abar{display:flex;align-items:center;gap:8px;padding:calc(8px + var(--sat)) calc(10px + var(--sar)) 8px calc(10px + var(--sal));background:#fdf3d8;border-bottom:3px solid #8a5a3a;font-weight:bold;font-size:15px;color:#5a3a22}
+#abar b{flex:1}
+#abar button{background:#ffd98a;border:2px solid #8a5a3a;border-radius:6px;padding:6px 12px;cursor:pointer;color:#5a3a22;font-weight:bold;font-size:14px}
+#abar button:active{background:#ffe9b5}
+#aframe{flex:1;width:100%;min-height:0;border:0;background:#EEF3DF}
 #ver{opacity:.8;cursor:pointer;text-decoration:underline dotted}
 #i-logs{max-height:120px;overflow:auto;font-size:10px;background:#2b2118;color:#f3e2b3;border-radius:6px;padding:6px;margin-top:6px;white-space:pre-wrap;word-break:break-all;user-select:text;-webkit-user-select:text}
 #i-logs.hidden{display:none}
@@ -128,6 +136,7 @@ body:not(.config) .adv{display:none!important}   /* configuração do servidor: 
 <div class="box" id="help">🕹️ <b>WASD/setas</b> andar · <b>arrastar</b> mover o mapa · <b>roda</b> zoom · <b>clique</b> num bicho/prédio · <b>E</b> interagir · <b>N</b> dia/noite · <b>F</b> seguir</div>
 <div id="joy"><i></i></div>
 <div id="hotbar"></div>
+<div id="arcade" class="hidden"><div id="abar"><b id="atitle">🎮 Fliperama</b><button id="aclose" title="Voltar para a fazenda">✖ Voltar</button></div><iframe id="aframe" title="Joguinho"></iframe></div>
 <div id="notes" class="hidden">
  <div class="box" id="np">
   <div id="nh"><b>💡 Ideias de novos apps</b><span id="nstat"></span><button id="ncfg" class="adv" title="Servidor de notas">⚙️</button><button id="nx" title="Fechar">✖</button></div>
@@ -211,6 +220,7 @@ const B=[
 // terrenos vizinhos cobertos de névoa: cada ideia plantada desbloqueia um
 const ENTRYFIX0={x:448,y:116,w:26,h:24};
 const SECBOX={x:306,y:48,w:44,h:36};   // casinha da secretária
+const ARCBOX={x:706,y:258,w:56,h:48};   // Fliperama (joguinhos)
 const PLOTS=[
  {x:500,y:22,w:130,h:76},{x:130,y:22,w:140,h:76},{x:652,y:22,w:130,h:76},
  {x:24,y:392,w:160,h:110},{x:196,y:400,w:140,h:100},{x:520,y:396,w:130,h:104}
@@ -218,7 +228,7 @@ const PLOTS=[
 B.forEach(b=>{b.state='up';b.cpu=rr(5,40);b.ram=rr(20,60);b.cpuT=b.cpu;b.since=Date.now()-rr(2,20)*86400000;b.ang=0;});
 const house=B[0],POND={cx:736,cy:402,rx:60,ry:34};
 const ROAD_Y=226,PATH_X=402;
-const PATHS=[[PATH_X,152,16,220],[60,ROAD_Y,700,16],[490,218,16,12]];
+const PATHS=[[PATH_X,152,16,220],[60,ROAD_Y,700,16],[490,218,16,12],[ARCBOX.x+ARCBOX.w/2-8,242,16,ARCBOX.y+ARCBOX.h-242+4]];
 // zona máxima de cada cercadinho no modo ao vivo (índice = prédio em B); gap = lado do portão
 const ZONES={a:{x:24,y:100,w:364,h:118},b:{x:24,y:250,w:364,h:112},c:{x:432,y:100,w:364,h:118},d:{x:432,y:250,w:364,h:112}};
 const inPath=(x,y)=>PATHS.some(p=>x>=p[0]&&x<p[0]+p[2]&&y>=p[1]&&y<p[1]+p[3]);
@@ -382,6 +392,7 @@ const noFlower=(x,y)=>{
  for(const k in ZONES){const z=ZONES[k];if(x>z.x-10&&x<z.x+z.w+10&&y>z.y-10&&y<z.y+z.h+10)return true;}
  for(const p of PLOTS)if(x>p.x-14&&x<p.x+p.w+14&&y>p.y-14&&y<p.y+p.h+14)return true;
  if(x>ENTRYFIX0.x-14&&x<ENTRYFIX0.x+ENTRYFIX0.w+14&&y>ENTRYFIX0.y-14&&y<ENTRYFIX0.y+ENTRYFIX0.h+14)return true;
+ if(x>ARCBOX.x-14&&x<ARCBOX.x+ARCBOX.w+14&&y>ARCBOX.y-14&&y<ARCBOX.y+ARCBOX.h+22)return true;
  for(const b of B)if(b.pen&&x>b.pen.x-6&&x<b.pen.x+b.pen.w+6&&y>b.pen.y-6&&y<b.pen.y+b.pen.h+6)return true;
  for(const p of PATHS)if(x>p[0]-5&&x<p[0]+p[2]+5&&y>p[1]-5&&y<p[1]+p[3]+5)return true;
  if(((x-POND.cx)/(POND.rx+14))**2+((y-POND.cy)/(POND.ry+12))**2<1)return true;
@@ -788,6 +799,32 @@ function dSecretaria(c,W,H){
 const SEC={id:'secretaria',type:'secretaria',name:'Alice Secretária',role:'Sua secretária do Telegram: gasto da IA e saldo',x:SECBOX.x,y:SECBOX.y,w:SECBOX.w,h:SECBOX.h,conts:[],state:'up',cpu:0,ram:0};
 SEC.spr=sprite(88,72,dSecretaria);
 SEC.sol={x:SEC.x+2,y:SEC.y+SEC.h*0.45,w:-1,h:SEC.h*0.55};solids.push(SEC.sol);
+/* ---------- Fliperama: a casinha dos joguinhos ---------- */
+const GAMES=['cobrinha','toupeira','memoria','galinha'];
+const GINFO={cobrinha:{e:'🐍',n:'Cobrinha'},toupeira:{e:'🔨',n:'Toupeira'},memoria:{e:'🃏',n:'Memória'},galinha:{e:'🐔',n:'Pega-galinha'}};
+const GMAX={cobrinha:800,toupeira:100,memoria:10,galinha:100};   // mesmo teto de moedas por partida do servidor
+const GAME_BTNS=GAMES.map(g=>`<button onclick="openGame('${g}')">${GINFO[g].e} ${GINFO[g].n}</button>`).join('');
+let gameOpen=false,gameId='';
+function dArcade(c,W,H){
+ planks(c,2,34,W-4,H-38,'#4b3f86',6);R(c,2,H-4,W-4,4,'#8d8d8d');
+ gable(c,-6,0,W+12,34,'#d9534f','#a63a37','#7d2a28','#f08a86');R(c,-6,33,W+12,3,'#7d2a28');eave(c,-6,36,W+12);
+ R(c,W/2-27,9,54,16,'#1b1740');R(c,W/2-27,9,54,2,'#ffd23f');R(c,W/2-27,23,54,2,'#ffd23f');R(c,W/2-27,9,2,16,'#ffd23f');R(c,W/2+25,9,2,16,'#ffd23f');
+ c.fillStyle='#ffd23f';c.font='bold 11px "Trebuchet MS",sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('JOGOS',W/2,17.5);
+ for(let i=0;i<7;i++){R(c,6+i*14,44,14,9,i%2?'#fff6e6':'#e0645c');R(c,6+i*14,53,14,3,i%2?'#e8dcc4':'#b94640');}
+ for(let i=0;i<14;i++)R(c,8+i*7,57,3,2,i%2?'#ffe27a':'#ff9a8a');
+ [[10,'#52e0ff'],[W-34,'#ff6bd6']].forEach(([x,col])=>{R(c,x-2,62,28,H-66,'#161230');R(c,x,64,24,16,'#0b0a1f');R(c,x+2,66,20,12,col);R(c,x+5,69,4,4,'#ffd23f');R(c,x+13,72,6,2,'#fff');
+  R(c,x+4,83,16,3,'#6c4aa3');R(c,x+7,82,3,2,'#e24b4a');R(c,x+14,82,3,2,'#3fa34d');});
+ const dx=W/2-9;R(c,dx-2,H-34,22,34,'#2b1d40');R(c,dx,H-32,18,32,'#6c4aa3');R(c,dx+3,H-28,12,12,'#52e0ff');R(c,dx+13,H-14,2,2,'#f2d36b');
+}
+const ARC={id:'fliperama',type:'arcade',name:'Fliperama',role:'Joguinhos da fazenda: jogue e ganhe moedas',x:ARCBOX.x,y:ARCBOX.y,w:ARCBOX.w,h:ARCBOX.h,state:'up',cpu:0,ram:0};
+ARC.spr=sprite(ARC.w*2,ARC.h*2,dArcade);
+ARC.sol={x:ARC.x+2,y:ARC.y+ARC.h*0.45,w:ARC.w-4,h:ARC.h*0.55};solids.push(ARC.sol);
+function drawArcade(t){
+ const b=ARC;
+ shadowDyn(b.x,b.y+b.h,b.w,b.h*.9,b.h);
+ blit(b.spr,b.x-PAD/2,b.y-PAD/2);
+ if(sel===b){const p=1+Math.sin(t*5)*0.5;ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=1;ctx.setLineDash([3,2]);ctx.strokeRect(b.x-3-p,b.y-3-p,b.w+6+p*2,b.h+8+p*2);ctx.setLineDash([]);}
+}
 const secVisible=()=>live&&((gastoData&&gastoData.enabled)||CONTS.has('secretaria'));
 const secState=()=>{const c=SEC.conts[0];return c?(c.busy?'restarting':c.ok?'up':'down'):'up';};
 function drawSecretaria(t){
@@ -885,12 +922,13 @@ function drawGarden(t){
 restoreDemoYards();
 // chegar perto de uma casinha (ou prédio, na demonstração) abre o painel dela, como se tivesse tocado
 function proximity(){
- if(notesOpen)return;
+ if(notesOpen||gameOpen)return;
  let best=null,bd=Infinity;
  const test=(k,b,cont,x,y,r)=>{const d=Math.hypot(x-P.x,y-P.y);if(d<r&&d<bd){bd=d;best={k,b,cont};}};
  if(live){for(const i in YARDS)for(const h of YARDS[i].houses)test(h,YARDS[i].b,h.cont,h.x+h.w/2,h.y+h.h,22);}
  else for(let i=1;i<=6;i++){const b=B[i];test(b,b,null,b.x+b.w/2,b.y+b.h,34);}
  if(live&&secVisible()&&!CONV.on)test(SEC,SEC,SEC.conts[0]||null,SEC.x+SEC.w/2,SEC.y+SEC.h,26);
+ test(ARC,ARC,null,ARC.x+ARC.w/2,ARC.y+ARC.h,28);
  const key=best?best.k:null;
  if(key===proxT)return;
  proxT=key;
@@ -986,12 +1024,13 @@ function draw(t){
  B.forEach(b=>{if(b.type==='field'||b.type==='pond'||(live&&b.hkey))return;E.push({y:b.y+b.h,k:0,o:b});});
  if(live)for(const i in YARDS)for(const h of YARDS[i].houses)E.push({y:h.y+h.h,k:6,o:h});
  if(secVisible()){E.push({y:SEC.y+SEC.h,k:7,o:SEC});if(!ALICE.hidden&&SEC.yard)E.push({y:ALICE.y,k:8,o:ALICE});}
+ E.push({y:ARC.y+ARC.h,k:9,o:ARC});
  PLOTS.forEach(p=>{if(p.unlocked)E.push({y:p.y+p.h*0.7,k:4,o:p});});
  A.forEach(a=>E.push({y:a.y,k:1,o:a}));
  E.push({y:P.y,k:2});
  trees.forEach(tr=>{if(tr.x>vx0&&tr.x<vx1&&tr.y>vy0&&tr.y<vy1)E.push({y:tr.y,k:3,o:tr});});
  E.sort((a,b)=>a.y-b.y);
- for(const e of E){switch(e.k){case 0:drawBuilding(e.o,t);break;case 1:drawAnimal(e.o,t);break;case 2:drawPlayer(t);break;case 4:drawPlotContent(e.o,t);break;case 6:drawHouse(e.o,t);break;case 7:drawSecretaria(t);break;case 8:drawAlice(t);break;case 3:{const sp=treeSpr[e.o.t][e.o.v];blit(sp,e.o.x-(30+PAD)/2,e.o.y-(82+PAD)/2);break;}}}
+ for(const e of E){switch(e.k){case 0:drawBuilding(e.o,t);break;case 1:drawAnimal(e.o,t);break;case 2:drawPlayer(t);break;case 4:drawPlotContent(e.o,t);break;case 6:drawHouse(e.o,t);break;case 7:drawSecretaria(t);break;case 8:drawAlice(t);break;case 9:drawArcade(t);break;case 3:{const sp=treeSpr[e.o.t][e.o.v];blit(sp,e.o.x-(30+PAD)/2,e.o.y-(82+PAD)/2);break;}}}
  PLOTS.forEach(p=>drawFog(p,t));drawLocks();drawEntry(t);
  puffs.forEach(p=>{const r_=3+p.l*3;ctx.globalAlpha=Math.max(0,0.65-p.l*0.22);ctx.save();ctx.translate(p.x,p.y);ctx.scale(.5,.5);de(0,0,r_|0,r_|0,'#ececec');ctx.restore();});ctx.globalAlpha=1;
  petals.forEach(p=>{if(p.x<vx0||p.x>vx1||p.y<vy0||p.y>vy1)return;ctx.save();ctx.translate(Math.round(p.x*2)/2,Math.round(p.y*2)/2);ctx.scale(.5,.5);d_(0,0,3,2,'#ffb8d2');d_(2,1,2,1,'#ff8fb8');ctx.restore();});
@@ -1000,6 +1039,7 @@ function draw(t){
   if(nf>0.3){
    ctx.save();ctx.translate(house.x,house.y);ctx.scale(.5,.5);R(ctx,23,59,20,12,'#ffe58a');ctx.restore();
    ctx.save();ctx.translate(house.x,house.y);ctx.scale(.5,.5);R(ctx,128-43,59,20,12,'#ffe58a');ctx.restore();
+   ctx.save();ctx.translate(ARC.x,ARC.y);ctx.scale(.5,.5);R(ctx,12,66,20,12,'#9af0ff');R(ctx,80,66,20,12,'#ff9be6');ctx.restore();
    ctx.globalCompositeOperation='lighter';
    LAMPS.concat([[house.x+house.w/2,house.y+house.h+4]]).slice(0,2).forEach(([x,y])=>{const gr=ctx.createRadialGradient(x+1.5,y-20,1,x+1.5,y-20,38);gr.addColorStop(0,`rgba(255,200,90,${0.55*nf})`);gr.addColorStop(1,'rgba(255,200,90,0)');ctx.fillStyle=gr;ctx.fillRect(x-40,y-60,84,84);});
    ctx.globalCompositeOperation='source-over';}}
@@ -1010,6 +1050,7 @@ function draw(t){
   if(cs>=3.2||h.cont===selCont)houseLb.push({type:'houselabel',name:n.length>14&&h.cont!==selCont?n.slice(0,13)+'…':n,x:h.x+h.w/2,y:h.y-4,w:0,h:0,meta:false,state:h.cont.busy?'restarting':h.cont.ok?'up':'down',cpu:0});}
  if(secVisible()){
   houseLb.push({type:'houselabel',name:'🌼 Alice Secretária',x:SEC.x+SEC.w/2,y:SEC.y-4,w:0,h:0,meta:false,state:secState(),cpu:0});}
+ houseLb.push({type:'houselabel',name:'🎮 Fliperama',x:ARC.x+ARC.w/2,y:ARC.y-4,w:0,h:0,meta:false,state:'up',cpu:0});
  const LB=B.concat(houseLb,PLOTS.filter(p=>p.unlocked&&p.fog<0.3&&p.idea).map(p=>{const st=p.idea.stage||'idea',tt=p.idea.title;
   return{type:'plotlabel',name:STAGES[st].e+' '+(tt.length>20?tt.slice(0,19)+'…':tt),x:p.x+p.w/2,y:p.y+p.h*0.7-40,w:0,h:0,meta:true,state:'up',cpu:0};}));
  for(const b of LB){
@@ -1075,6 +1116,7 @@ function pick(w){
  if(best)return best;
  if(live)for(const i in YARDS)for(const h of YARDS[i].houses)if(w.x>=h.x-3&&w.x<=h.x+h.w+3&&w.y>=h.y-3&&w.y<=h.y+h.h+12){lastPickCont=h.cont;return YARDS[i].b;}
  if(secVisible()){const Yd=SEC.yard;if((w.x>=SEC.x-3&&w.x<=SEC.x+SEC.w+3&&w.y>=SEC.y-3&&w.y<=SEC.y+SEC.h+12)||(Yd&&w.x>=Yd.x&&w.x<=Yd.x+Yd.w&&w.y>=Yd.y&&w.y<=Yd.y+Yd.h)){lastPickCont=SEC.conts[0]||null;return SEC;}}
+ if(w.x>=ARC.x-4&&w.x<=ARC.x+ARC.w+4&&w.y>=ARC.y-4&&w.y<=ARC.y+ARC.h+12)return ARC;
  for(const b of B){if(w.x>=b.x-4&&w.x<=b.x+b.w+4&&w.y>=b.y-4&&w.y<=b.y+b.h+4)return b;}
  if(((w.x-POND.cx)/POND.rx)**2+((w.y-POND.cy)/POND.ry)**2<1)return B[8];
  for(const p of PLOTS)if(w.x>=p.x&&w.x<=p.x+p.w&&w.y>=p.y&&w.y<=p.y+p.h)return p;
@@ -1099,9 +1141,10 @@ function select(b){
  renderInfo(true);}
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();
  if(notesOpen){if(k==='escape')closeNotes();return;}
+ if(gameOpen){if(k==='escape')closeGame();return;}
  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
  keys[k]=true;if(e.shiftKey)keys.shift=true;
- if(k==='e'){let best=null,bd=60;B.concat(PLOTS,PLOTS.some(p=>!p.unlocked)?[]:[ENTRYFIX]).forEach(b=>{const d=Math.hypot(b.x+b.w/2-P.x,b.y+b.h-P.y);if(d<bd){bd=d;best=b;}});lastPickCont=null;select(best);if(!best)toast('Nada por perto para interagir.');}
+ if(k==='e'){let best=null,bd=60;B.concat([ARC],PLOTS,PLOTS.some(p=>!p.unlocked)?[]:[ENTRYFIX]).forEach(b=>{const d=Math.hypot(b.x+b.w/2-P.x,b.y+b.h-P.y);if(d<bd){bd=d;best=b;}});lastPickCont=null;select(best);if(!best)toast('Nada por perto para interagir.');}
  if(k==='f')follow=true;
  if(k==='n'){nightMode=nightMode==='auto'?'day':nightMode==='day'?'night':'auto';toast('🌗 Modo: '+({auto:'automático (hora real)',day:'sempre dia',night:'sempre noite'})[nightMode]);}
  if(k==='+'||k==='=')stepZoom(1.3);if(k==='-'||k==='_')stepZoom(1/1.3);
@@ -1121,7 +1164,7 @@ function act(n){
   const c=selCont||(sel&&sel.conts&&sel.conts.length===1?sel.conts[0]:null);
   if(!c)return toast('Toque no bichinho (ou na linha dele) para escolher o container.');
   return n===2?restartCont(c):showLogs(c);}
- if(n===1){let best=null,bd=60;B.concat(PLOTS,PLOTS.some(p=>!p.unlocked)?[]:[ENTRYFIX]).forEach(b=>{const d=Math.hypot(b.x+b.w/2-P.x,b.y+b.h-P.y);if(d<bd){bd=d;best=b;}});lastPickCont=null;select(best||sel);if(!best&&!sel)toast('Toque num bicho ou prédio.');return;}
+ if(n===1){let best=null,bd=60;B.concat([ARC],PLOTS,PLOTS.some(p=>!p.unlocked)?[]:[ENTRYFIX]).forEach(b=>{const d=Math.hypot(b.x+b.w/2-P.x,b.y+b.h-P.y);if(d<bd){bd=d;best=b;}});lastPickCont=null;select(best||sel);if(!best&&!sel)toast('Toque num bicho ou prédio.');return;}
  if(n===2){if(!isSvc(sel))return toast('Selecione um serviço (bicho ou prédio) para reiniciar.');restart(sel);return;}
  if(n===3){if(!sel||!isSvc(sel))return toast('Selecione um serviço para ver os logs.');
   toast('📜 '+sel.name+': '+(sel.state==='up'?'INFO started · healthcheck ok · sem erros (24h)':'ERROR container exited (code 137)'));return;}
@@ -1152,6 +1195,7 @@ function renderInfo(full){
  if(sel.type==='house')h=bar('⚡ CPU',S.cpu,'#e67e22')+bar('🧠 RAM',S.ram,'#3498db')+bar('🥕 Disco',S.dsk,'#8d5e3b')+`<div style="font-size:11px">🦆 Rede ${Math.round(S.net)} Mb/s</div>`;
  else if(sel.type==='field')h=bar('🥕 Disco usado',S.dsk,'#8d5e3b')+`<div style="font-size:11px">${S.dsk>85?'⚠️ Horta lotada! Use 🧹':'Tudo sob controle.'}</div>`;
  else if(sel.type==='pond')h=`<div style="font-size:12px">🦆 ${Math.round(S.net)} Mb/s agora</div>`;
+ else if(sel.type==='arcade')h=arcadeInfo();
  else if(live&&sel.type==='secretaria'){
   h=secMoney()+rowsHtml(sel.conts)+(selCont?`<div style="font-size:11px;margin-top:4px">${esc(selCont.status||'')}</div>`:'');}
  else if(live&&sel.conts){
@@ -1162,7 +1206,7 @@ function renderInfo(full){
   h=`<div style="font-size:12px;margin-bottom:4px">${st} · ${days}d de uptime</div>`+bar('⚡ CPU',sel.cpu,'#e67e22')+bar('🧠 RAM',sel.ram,'#3498db');}
  const bodyEl=document.getElementById('i-body');if(bodyEl.dataset.h!==h){bodyEl.innerHTML=h;bodyEl.dataset.h=h;}
  if(full){const bt=document.getElementById('i-btns');
-  bt.innerHTML=isSvc(sel)?(live?'<button onclick="act(2)">🔄 Reiniciar</button><button onclick="act(3)">📜 Logs</button>':'<button onclick="act(2)">🔄 Reiniciar</button><button onclick="act(3)">📜 Logs</button><button onclick="act(5)">⬆️ Atualizar</button>'):sel.type==='house'?'<button onclick="act(4)">💾 Backup</button><button onclick="act(6)">🧹 Limpar</button>':sel.type==='field'?'<button onclick="act(6)">🧹 Limpar disco</button>':'';
+  bt.innerHTML=isSvc(sel)?(live?'<button onclick="act(2)">🔄 Reiniciar</button><button onclick="act(3)">📜 Logs</button>':'<button onclick="act(2)">🔄 Reiniciar</button><button onclick="act(3)">📜 Logs</button><button onclick="act(5)">⬆️ Atualizar</button>'):sel.type==='arcade'?GAME_BTNS:sel.type==='house'?'<button onclick="act(4)">💾 Backup</button><button onclick="act(6)">🧹 Limpar</button>':sel.type==='field'?'<button onclick="act(6)">🧹 Limpar disco</button>':'';
   bt.innerHTML+='<button onclick="select(null)">✖</button>';}
 }
 function hud(){
@@ -1193,7 +1237,7 @@ setInterval(hud,500);
 setInterval(()=>{if(!live)S.dsk=Math.min(95,S.dsk+Math.random()*0.4);},4000);
 
 /* ---------- ideias de apps (notas) ---------- */
-const APP_VERSION='1.12.1',APP_DATE='24/10/2026';
+const APP_VERSION='1.13.0',APP_DATE='25/10/2026';
 const NK='fazenda.notes.v1',CK='fazenda.cfg.v1';
 let notes=[],pendDel=[],cfg={url:'',token:''},curId=null,curStage='idea',notesOpen=false,syncing=false;
 (function(){try{const j=JSON.parse(localStorage.getItem(NK)||'{}');notes=j.notes||[];pendDel=j.pendDel||[];}catch(e){}
@@ -1327,7 +1371,7 @@ function setLive(v){
  if(v===live)return;
  live=v;
  document.querySelectorAll('.slot').forEach((s,i)=>s.classList.toggle('off',live&&i>=3));
- if(live){liveSnap=true;toast('🟢 Conectado ao servidor!');updateBuildings();pollCredit();}
+ if(live){liveSnap=true;toast('🟢 Conectado ao servidor!');updateBuildings();pollCredit();syncGames();}
  else{toast('🔴 Perdi a conexão com o servidor. Voltando à demonstração.');CONTS.clear();restoreDemo();}
  if(live)layoutLive();else restoreDemoYards();
  buildAnimals();selCont=null;sel=null;proxT=null;autoOpen=false;if(!live)creditData=null;renderInfo(true);
@@ -1363,6 +1407,73 @@ async function pollCredit(){
 }
 $n('credit').onclick=()=>{if(creditData)toast($n('credit').title);};
 setInterval(()=>{if(document.visibilityState==='visible')pollCredit();},300000);
+/* ---------- Fliperama: placar e moedas (guardados no servidor; offline ficam na fila) ---------- */
+const GK2='fazenda.games.v1';
+let GS={srv:null,pend:[]},gFlush=false;
+try{const j=JSON.parse(localStorage.getItem(GK2)||'{}');GS={srv:j.srv&&j.srv.jogos?j.srv:null,pend:(Array.isArray(j.pend)?j.pend:[]).filter(p=>p&&GAMES.includes(p.jogo)&&typeof p.pid==='string')};}catch(e){}
+const saveGS=()=>{try{localStorage.setItem(GK2,JSON.stringify(GS));}catch(e){}};
+function gstats(){
+ const j={};GAMES.forEach(g=>{const s=(GS.srv&&GS.srv.jogos&&GS.srv.jogos[g])||{};j[g]={melhor:s.melhor|0,partidas:s.partidas|0,moedas:s.moedas|0};});
+ GS.pend.forEach(p=>{const x=j[p.jogo];if(!x)return;x.melhor=Math.max(x.melhor,p.pontos|0);x.partidas++;x.moedas+=p.moedas|0;});
+ let tot=0;GAMES.forEach(g=>tot+=j[g].moedas);
+ return{jogos:j,moedas:tot};
+}
+function arcadeInfo(){
+ const s=gstats(),off=cfg.url&&cfg.token&&!live;
+ return `<div style="font-size:12px;margin-bottom:4px">🪙 <b>${s.moedas}</b> moedas ganhas nos jogos${off?' <span style="opacity:.7">(sem conexão: guardadas aqui)</span>':''}</div>`
+  +GAMES.map(g=>{const x=s.jogos[g];return `<div style="font-size:11px">${GINFO[g].e} ${GINFO[g].n}: recorde <b>${x.melhor}</b> · ${x.partidas} ${x.partidas===1?'partida':'partidas'}</div>`;}).join('');
+}
+function sendStats(){
+ const f=$n('aframe');if(!gameOpen||!f.contentWindow)return;
+ const s=gstats(),x=s.jogos[gameId];
+ try{f.contentWindow.postMessage({fz:1,type:'stats',game:gameId,stats:{melhor:x.melhor,partidas:x.partidas,moedas:s.moedas}},location.origin);}catch(e){}
+}
+async function syncGames(){
+ if(!cfg.url||!cfg.token||gFlush)return;gFlush=true;
+ try{
+  while(GS.pend.length){
+   const p=GS.pend[0];
+   try{GS.srv=await api('/placar','POST',p);}
+   catch(e){if(e.status!==400)throw e;}   // 400 = o servidor recusou essa partida: descarta e segue
+   GS.pend.shift();saveGS();
+  }
+  GS.srv=await api('/placar');saveGS();
+ }catch(e){}   // sem conexão ou servidor antigo: as partidas continuam na fila
+ finally{gFlush=false;}
+ if(gameOpen)sendStats();
+ if(sel===ARC)renderInfo(false);
+}
+function gameResult(m){
+ const pontos=clamp(m.points|0,0,100000),moedas=clamp(m.coins|0,0,GMAX[gameId]||0);
+ GS.pend.push({pid:Date.now().toString(36)+Math.random().toString(36).slice(2,10),jogo:gameId,pontos,moedas});
+ if(GS.pend.length>1000)GS.pend.shift();
+ saveGS();
+ if(moedas){coins+=moedas;toast('🪙 +'+moedas+(moedas===1?' moeda':' moedas')+' do Fliperama!');}
+ addXP(10);
+ sendStats();if(sel===ARC)renderInfo(false);
+ syncGames();
+}
+function openGame(g){
+ if(!GAMES.includes(g))return;
+ gameId=g;gameOpen=true;for(const k in keys)keys[k]=false;joy.on=false;joy.x=joy.y=0;
+ $n('atitle').textContent=GINFO[g].e+' '+GINFO[g].n;
+ $n('arcade').classList.remove('hidden');
+ const f=$n('aframe');f.onload=()=>{try{f.contentWindow.focus();}catch(e){}};
+ f.src='games/'+g+'.html?v='+APP_VERSION;
+ syncGames();
+}
+function closeGame(){
+ gameOpen=false;gameId='';
+ $n('arcade').classList.add('hidden');$n('aframe').src='about:blank';
+ if(sel===ARC)renderInfo(false);
+}
+$n('aclose').onclick=closeGame;
+addEventListener('message',e=>{
+ const m=e.data,f=$n('aframe');
+ if(e.origin!==location.origin||!m||m.fz!==1||!gameOpen||e.source!==f.contentWindow||(m.game&&m.game!==gameId))return;
+ if(m.type==='ready')sendStats();else if(m.type==='result')gameResult(m);else if(m.type==='close')closeGame();
+});
+setInterval(()=>{if(live&&document.visibilityState==='visible')syncGames();},60000);
 function pickCont(name){selCont=CONTS.get(name)||null;renderInfo(true);}
 $n('i-body').addEventListener('click',e=>{const r=e.target.closest('.crow');if(r)pickCont(r.dataset.n);});
 const openConfig=()=>{document.body.classList.add('config');openNotes(null);$n('ncfgbox').classList.remove('hidden');};
@@ -1381,7 +1492,7 @@ function loop(ts){
  const dt=Math.min(0.05,(ts-last)/1000);last=ts;const t=ts/1000;
  try{
   const rc=cv.getBoundingClientRect();if(Math.abs(rc.width-VW)>1||Math.abs(rc.height-VH)>1)resize();
-  update(dt,t);draw(t);
+  if(!gameOpen){update(dt,t);draw(t);}
  }catch(e){
   lastErr=(e&&e.message||String(e)).slice(0,60);
   if(++errN===1||errN%120===0)toast('⚠️ erro: '+lastErr);

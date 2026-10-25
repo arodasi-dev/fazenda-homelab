@@ -122,13 +122,25 @@ Cuidados:
 - O valor é uma estimativa: a API de custos não inclui o Priority Tier, e não considera impostos, créditos que expiram nem bônus. Confira de vez em quando no Console (Billing).
 - O servidor consulta a Anthropic no máximo a cada 5 minutos.
 
+## Placar do Fliperama
+
+Os joguinhos da fazenda (cobrinha, toupeira, memória e pega-galinha) guardam o placar e as moedas num banco SQLite **único**, o `placar.db`, na mesma pasta das notas (`notas/`, que já é o volume do container). Não precisa configurar nada: o arquivo é criado na primeira partida. O backup é copiar essa pasta.
+
+O app envia o resultado quando a partida termina. Se o servidor estiver fora do ar, a partida fica numa fila no aparelho e é enviada quando a conexão volta (sem contar em dobro).
+
+Para ver o que foi gravado:
+
+```bash
+sqlite3 notas/placar.db "SELECT jogo, MAX(pontos), COUNT(*), SUM(moedas) FROM partidas GROUP BY jogo"
+```
+
 ## Testes
 
 ```bash
 python test_server.py
 ```
 
-Sobe um Docker falso e confere status, logs, reinício, autenticação e notas.
+Sobe um Docker falso e confere status, logs, reinício, autenticação, notas e o placar dos jogos.
 
 ## API (resumo)
 
@@ -141,6 +153,8 @@ Todas as rotas, menos `/health`, pedem `Authorization: Bearer <token>`.
 | GET | `/credit` | gasto e saldo estimado da API da Anthropic (se configurado) |
 | PUT | `/credit` | guarda o saldo digitado à mão `{remaining}` |
 | GET | `/gasto` | gasto do mês da secretária (se configurado) |
+| GET | `/placar` | recorde, partidas e moedas de cada joguinho do Fliperama, mais o total de moedas |
+| POST | `/placar` | grava o fim de uma partida `{jogo, pid, pontos, moedas}` (`jogo`: `cobrinha`, `toupeira`, `memoria` ou `galinha`; o `pid` único evita contar duas vezes se o app reenviar) |
 | GET | `/containers/<nome>/logs?tail=25` | últimas linhas de log |
 | POST | `/containers/<nome>/restart` | reinicia (só com `ENABLE_RESTART=1`) |
 | GET | `/notes` | lista todas as ideias |

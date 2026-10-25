@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Acerte a toupeira</title>
+<link rel="stylesheet" href="jogos.css">
+<style>
+.board{aspect-ratio:1.3/1;background:#6FAE4C;background-image:radial-gradient(circle at 20% 30%,rgba(255,255,255,.07) 0 18%,transparent 19%),radial-gradient(circle at 80% 70%,rgba(0,0,0,.06) 0 22%,transparent 23%)}
+.holes{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:4px;padding:6px}
+.hole{appearance:none;-webkit-appearance:none;border:0;background:none;padding:0;margin:0;cursor:pointer;touch-action:manipulation;display:block;min-width:0;min-height:0}
+.hole svg{display:block;width:100%;height:100%;overflow:hidden}
+.mole{transform:translateY(80px);transition:transform .14s ease-out}
+.hole.up .mole{transform:translateY(0)}
+.hole.hit .mole{transform:translateY(14px)}
+.hole.hit .body{fill:#F2A33A}
+@media (prefers-reduced-motion:reduce){.mole{transition:none}}
+.pop{position:absolute;pointer-events:none;font-weight:700;font-size:22px;color:#FFF7D6;text-shadow:0 2px 0 #3B2412;animation:pop .6s ease-out forwards;transform:translate(-50%,-50%)}
+@keyframes pop{from{opacity:1;margin-top:0}to{opacity:0;margin-top:-34px}}
+</style>
+</head>
+<body>
+<main class="app">
+  <h1>Acerte a toupeira</h1>
+  <div class="stats" style="--cols:4">
+    <div class="stat"><span>Pontos</span><b id="score">0</b></div>
+    <div class="stat"><span>Tempo</span><b id="time">0:30</b></div>
+    <div class="stat"><span>Recorde</span><b id="best">0</b></div>
+    <div class="stat"><span>Moedas</span><b id="coins">0</b></div>
+  </div>
+  <div class="board" id="board">
+    <div class="holes" id="holes" aria-label="Buracos"></div>
+    <div class="overlay" id="ov">
+      <h2 id="ovTitle">Pronta pra caçar bugs?</h2>
+      <p id="ovText">Toque nas toupeiras antes que elas se escondam. Cada uma traz um erro do servidor: o <b>500</b> vale 2 pontos.</p>
+      <button class="go" id="go">Começar</button>
+    </div>
+  </div>
+  <p class="hint">30 segundos. A cada 3 pontos você ganha 1 moeda.<br>No teclado: Q W E (cima) e A S D (baixo).</p>
+</main>
+
+<script src="bridge.js"></script>
+<script>
+(function(){
+  var DURATION = 30;
+  var LABELS = ['timeout', '404', '500'];
+  var KEYS = { q:0, w:1, e:2, a:3, s:4, d:5 };
+  var holesEl = document.getElementById('holes');
+  var board = document.getElementById('board');
+  var ov = document.getElementById('ov');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var goBtn = document.getElementById('go');
+  var elScore = document.getElementById('score');
+  var elTime = document.getElementById('time');
+  var elBest = document.getElementById('best');
+  var elCoins = document.getElementById('coins');
+
+  var best = 0, base = 0, alive = false;
+  var score = 0, gt = 0, nextSpawn = 0, timer = null, last = 0, running = false, prevBest = 0;
+
+  var NS = 'http://www.w3.org/2000/svg';
+  var cells = [];
+  for (var i = 0; i < 6; i++) {
+    var b = document.createElement('button');
+    b.className = 'hole';
+    b.setAttribute('aria-label', 'Buraco ' + (i + 1));
+    b.dataset.i = i;
+    b.innerHTML =
+      '<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">' +
+      '<defs><clipPath id="c' + i + '"><rect x="0" y="0" width="100" height="70"/></clipPath></defs>' +
+      '<ellipse cx="50" cy="70" rx="36" ry="14" fill="#2E1A0C"/>' +
+      '<g clip-path="url(#c' + i + ')"><g class="mole">' +
+        '<path class="body" d="M27 74 A23 26 0 0 1 73 74 Z" fill="#8B5A33"/>' +
+        '<ellipse cx="50" cy="66" rx="13" ry="9" fill="#B07F52"/>' +
+        '<circle cx="40" cy="52" r="4.5" fill="#fff"/><circle cx="60" cy="52" r="4.5" fill="#fff"/>' +
+        '<circle cx="40.8" cy="52.6" r="2.2" fill="#1B120A"/><circle cx="60.8" cy="52.6" r="2.2" fill="#1B120A"/>' +
+        '<ellipse cx="50" cy="60" rx="5.5" ry="3.8" fill="#F4A6B8"/>' +
+        '<g class="tag"><rect x="28" y="14" width="44" height="19" rx="6" fill="#FBFCF4" stroke="#3B6D11" stroke-width="2"/>' +
+        '<text x="50" y="28" text-anchor="middle" font-size="13" font-weight="700" font-family="Trebuchet MS,system-ui,sans-serif" fill="#26340F"></text></g>' +
+      '</g></g>' +
+      '<path d="M14 70 A36 14 0 0 0 86 70" fill="none" stroke="#6A4226" stroke-width="5" stroke-linecap="round"/>' +
+      '</svg>';
+    holesEl.appendChild(b);
+    cells.push({ el: b, text: b.querySelector('text'), up: false, hit: false, until: 0, label: '' });
+  }
+
+  function fmt(s){ s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function hud(){
+    elScore.textContent = score || 0;
+    elBest.textContent = Math.max(best, score || 0);
+    elCoins.textContent = base + (alive ? Math.floor((score || 0) / 3) : 0);
+    elTime.textContent = fmt(DURATION - gt);
+  }
+
+  function setUp(c, on){
+    c.up = on;
+    c.el.classList.toggle('up', on);
+    if (!on) { c.hit = false; c.el.classList.remove('hit'); }
+  }
+
+  function spawn(){
+    var free = cells.filter(function(c){ return !c.up; });
+    if (!free.length) return;
+    var c = free[Math.floor(Math.random() * free.length)];
+    c.label = LABELS[Math.floor(Math.random() * LABELS.length)];
+    c.text.textContent = c.label;
+    c.until = gt + Math.max(0.65, 1.15 - gt * 0.017);
+    setUp(c, true);
+  }
+
+  function pop(c, txt){
+    var r = c.el.getBoundingClientRect(), br = board.getBoundingClientRect();
+    var p = document.createElement('div');
+    p.className = 'pop';
+    p.textContent = txt;
+    p.style.left = (r.left - br.left + r.width / 2) + 'px';
+    p.style.top = (r.top - br.top + r.height * 0.3) + 'px';
+    board.appendChild(p);
+    setTimeout(function(){ if (p.parentNode) p.parentNode.removeChild(p); }, 650);
+  }
+
+  function whack(i){
+    if (!running) return;
+    var c = cells[i];
+    if (!c || !c.up || c.hit) return;
+    var pts = c.label === '500' ? 2 : 1;
+    score += pts;
+    c.hit = true;
+    c.el.classList.add('hit');
+    c.text.textContent = '✓';
+    c.until = gt + 0.22;
+    pop(c, '+' + pts);
+    hud();
+  }
+
+  function step(){
+    if (!running) return;
+    var now = performance.now();
+    var dt = Math.min(0.2, (now - last) / 1000);
+    last = now;
+    gt += dt;
+    if (gt >= DURATION) { end(); return; }
+    nextSpawn -= dt;
+    if (nextSpawn <= 0) {
+      spawn();
+      nextSpawn = Math.max(0.45, 0.95 - gt * 0.017) + Math.random() * 0.25;
+    }
+    cells.forEach(function(c){ if (c.up && gt >= c.until) setUp(c, false); });
+    hud();
+  }
+
+  function begin(){
+    running = true;
+    last = performance.now();
+    clearInterval(timer);
+    timer = setInterval(step, 50);
+  }
+
+  function start(){
+    score = 0; gt = 0; nextSpawn = 0.4;
+    cells.forEach(function(c){ setUp(c, false); });
+    prevBest = best;
+    alive = true;
+    ov.hidden = true;
+    goBtn.dataset.resume = '';
+    hud();
+    begin();
+  }
+
+  function end(){
+    running = false;
+    alive = false;
+    clearInterval(timer);
+    cells.forEach(function(c){ setUp(c, false); });
+    var coins = Math.floor(score / 3);
+    ovTitle.textContent = score > prevBest ? 'Novo recorde!' : 'Tempo esgotado';
+    ovText.textContent = 'Você fez ' + score + (score === 1 ? ' ponto' : ' pontos') +
+      ' e ganhou ' + coins + (coins === 1 ? ' moeda.' : ' moedas.');
+    goBtn.textContent = 'Jogar de novo';
+    ov.hidden = false;
+    base += coins;
+    best = Math.max(best, score);
+    gt = DURATION;
+    hud();
+    if (score > 0) FZ.result(score, coins);
+  }
+
+  function pause(){
+    if (!running) return;
+    running = false;
+    clearInterval(timer);
+    ovTitle.textContent = 'Pausado';
+    ovText.textContent = 'As toupeiras esperam por você.';
+    goBtn.textContent = 'Continuar';
+    goBtn.dataset.resume = '1';
+    ov.hidden = false;
+  }
+
+  goBtn.addEventListener('click', function(){
+    if (goBtn.dataset.resume === '1') { goBtn.dataset.resume = ''; ov.hidden = true; begin(); }
+    else start();
+  });
+
+  // toque: responde na hora (pointerdown); o "click" só vale quando veio do teclado
+  holesEl.addEventListener('pointerdown', function(e){
+    var h = e.target.closest('.hole');
+    if (h) { e.preventDefault(); whack(+h.dataset.i); }
+  });
+  holesEl.addEventListener('click', function(e){
+    var h = e.target.closest('.hole');
+    if (h && e.detail === 0) whack(+h.dataset.i);
+  });
+
+  window.addEventListener('keydown', function(e){
+    var k = e.key.toLowerCase();
+    if (k in KEYS && !e.repeat) { whack(KEYS[k]); return; }
+    if ((e.key === ' ' || e.key === 'Enter') && !ov.hidden) { e.preventDefault(); goBtn.blur(); goBtn.click(); }
+    else if (e.key === ' ' && running) { e.preventDefault(); pause(); }
+  });
+  window.addEventListener('keyup', function(e){ if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); });
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) pause(); });
+
+  FZ.init('toupeira', function(st){ best = st.melhor; base = st.moedas; hud(); });
+})();
+</script>
+</body>
+</html>

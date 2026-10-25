@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Jogo da memória</title>
+<link rel="stylesheet" href="jogos.css">
+<style>
+.board{background:#6FAE4C;background-image:radial-gradient(circle at 15% 25%,rgba(255,255,255,.07) 0 20%,transparent 21%),radial-gradient(circle at 85% 80%,rgba(0,0,0,.06) 0 22%,transparent 23%)}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px}
+.card{appearance:none;-webkit-appearance:none;display:block;border:0;background:none;padding:0;margin:0;aspect-ratio:70/80;perspective:600px;cursor:pointer;touch-action:manipulation;min-width:0}
+.inner{display:block;position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .3s}
+.card.flip .inner,.card.found .inner{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:10px;border:3px solid #4B2B78;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;align-items:center;justify-content:center}
+.back{background:radial-gradient(circle,#B79AE0 0 16%,transparent 18%) 0 0/14px 14px,#6B3FA0}
+.front{background:#FFFFFF;border-color:#F2A33A;transform:rotateY(180deg);font-size:clamp(26px,9vw,40px);line-height:1}
+.card.found .front{border-color:#3FA34D;background:#F1FBEA}
+.card:disabled{cursor:default}
+@media (prefers-reduced-motion:reduce){.inner{transition:none}}
+</style>
+</head>
+<body>
+<main class="app">
+  <h1>Jogo da memória</h1>
+  <div class="stats" style="--cols:4">
+    <div class="stat"><span>Tentativas</span><b id="tries">0</b></div>
+    <div class="stat"><span>Tempo</span><b id="time">0:00</b></div>
+    <div class="stat"><span>Recorde</span><b id="best">0</b></div>
+    <div class="stat"><span>Moedas</span><b id="coins">0</b></div>
+  </div>
+  <div class="board" id="board">
+    <div class="cards" id="cards" aria-label="Cartas"></div>
+    <div class="overlay" id="ov">
+      <h2 id="ovTitle">Quem tem boa memória?</h2>
+      <p id="ovText">Vire duas cartas por vez e encontre os 4 pares da fazenda. Menos tentativas e menos tempo rendem mais pontos.</p>
+      <button class="go" id="go">Começar</button>
+    </div>
+  </div>
+  <p class="hint">Par encontrado fica com borda verde.<br>Perfeito = 4 tentativas.</p>
+</main>
+
+<script src="bridge.js"></script>
+<script>
+(function(){
+  var ICONS = ['🏠', '🐔', '🐄', '🥕'];
+  var cardsEl = document.getElementById('cards');
+  var ov = document.getElementById('ov');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var goBtn = document.getElementById('go');
+  var elTries = document.getElementById('tries');
+  var elTime = document.getElementById('time');
+  var elBest = document.getElementById('best');
+  var elCoins = document.getElementById('coins');
+
+  var best = 0, base = 0;
+  var deck = [], first = null, lock = false, tries = 0, found = 0, secs = 0, started = false, playing = false, timer = null, last = 0, prevBest = 0;
+
+  function fmt(s){ s = Math.floor(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function hud(){
+    elTries.textContent = tries;
+    elTime.textContent = fmt(secs);
+    elBest.textContent = best;
+    elCoins.textContent = base;
+  }
+
+  function shuffle(a){
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function build(){
+    cardsEl.innerHTML = '';
+    deck = shuffle(ICONS.concat(ICONS)).map(function(ic, i){
+      var b = document.createElement('button');
+      b.className = 'card';
+      b.setAttribute('aria-label', 'Carta ' + (i + 1) + ', virada para baixo');
+      b.innerHTML = '<span class="inner"><span class="face back"></span><span class="face front">' + ic + '</span></span>';
+      b.addEventListener('click', function(){ flip(i); });
+      cardsEl.appendChild(b);
+      return { el: b, icon: ic, open: false, done: false };
+    });
+  }
+
+  function clock(){
+    var now = performance.now();
+    secs += Math.min(0.5, (now - last) / 1000);   // aba escondida não conta tempo
+    last = now;
+    elTime.textContent = fmt(secs);
+  }
+  function startClock(){ last = performance.now(); clearInterval(timer); timer = setInterval(clock, 250); }
+
+  function flip(i){
+    var c = deck[i];
+    if (!playing || lock || c.open || c.done) return;
+    if (!started) { started = true; startClock(); }
+    c.open = true;
+    c.el.classList.add('flip');
+    c.el.setAttribute('aria-label', 'Carta ' + (i + 1) + ': ' + c.icon);
+    if (first === null) { first = c; return; }
+    tries++;
+    elTries.textContent = tries;
+    var a = first; first = null;
+    if (a.icon === c.icon) {
+      a.done = c.done = true;
+      a.el.classList.add('found'); c.el.classList.add('found');
+      a.el.disabled = c.el.disabled = true;
+      found++;
+      if (found === ICONS.length) setTimeout(win, 600);
+    } else {
+      lock = true;
+      setTimeout(function(){
+        [a, c].forEach(function(x){ x.open = false; x.el.classList.remove('flip'); x.el.setAttribute('aria-label', 'Carta virada para baixo'); });
+        lock = false;
+      }, 750);
+    }
+  }
+
+  function win(){
+    playing = false;
+    clearInterval(timer);
+    var score = Math.max(10, 100 - (tries - ICONS.length) * 8 - Math.floor(secs / 2));
+    var coins = tries <= 5 ? 3 : tries <= 7 ? 2 : 1;
+    ovTitle.textContent = score > prevBest ? 'Novo recorde!' : 'Todos os pares!';
+    ovText.textContent = tries + ' tentativas em ' + fmt(secs) + ': ' + score + ' pontos e ' + coins + (coins === 1 ? ' moeda.' : ' moedas.');
+    goBtn.textContent = 'Jogar de novo';
+    ov.hidden = false;
+    base += coins;
+    best = Math.max(best, score);
+    hud();
+    FZ.result(score, coins);
+  }
+
+  function start(){
+    build();
+    first = null; lock = false; tries = 0; found = 0; secs = 0; started = false; playing = true;
+    prevBest = best;
+    clearInterval(timer);
+    ov.hidden = true;
+    goBtn.dataset.resume = '';
+    hud();
+  }
+
+  function pause(){
+    if (!playing || !started) return;   // antes da 1ª carta o relógio nem começou
+    playing = false;
+    clearInterval(timer);
+    ovTitle.textContent = 'Pausado';
+    ovText.textContent = 'As cartas esperam por você.';
+    goBtn.textContent = 'Continuar';
+    goBtn.dataset.resume = '1';
+    ov.hidden = false;
+  }
+
+  goBtn.addEventListener('click', function(){
+    if (goBtn.dataset.resume === '1') { goBtn.dataset.resume = ''; ov.hidden = true; playing = true; startClock(); }
+    else start();
+  });
+  window.addEventListener('keydown', function(e){
+    if ((e.key === ' ' || e.key === 'Enter') && !ov.hidden) { e.preventDefault(); goBtn.blur(); goBtn.click(); }
+  });
+  window.addEventListener('keyup', function(e){ if ((e.key === ' ' || e.key === 'Enter') && !ov.hidden) e.preventDefault(); });
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) pause(); });
+
+  build();
+  FZ.init('memoria', function(st){ best = st.melhor; base = st.moedas; hud(); });
+})();
+</script>
+</body>
+</html>

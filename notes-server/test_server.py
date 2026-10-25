@@ -158,6 +158,27 @@ try:
     assert [n for n in call("GET", "/notes")[1] if n["id"] == "n2"][0]["stage"] == "idea"
     assert call("DELETE", "/notes/n1")[0] == 204
     print("notas ok")
+
+    # placar dos joguinhos (SQLite): soma moedas, guarda o melhor e ignora partida repetida (mesmo pid)
+    code, pl = call("GET", "/placar")
+    assert code == 200 and pl["moedas_total"] == 0 and pl["jogos"]["cobrinha"] == {"melhor": 0, "partidas": 0, "moedas": 0}, pl
+    code, pl = call("POST", "/placar", {"jogo": "cobrinha", "pid": "aaaaaaaa1", "pontos": 7, "moedas": 9})
+    assert code == 200 and pl["jogos"]["cobrinha"] == {"melhor": 7, "partidas": 1, "moedas": 9}, pl
+    call("POST", "/placar", {"jogo": "cobrinha", "pid": "aaaaaaaa2", "pontos": 4, "moedas": 4})
+    code, pl = call("POST", "/placar", {"jogo": "memoria", "pid": "aaaaaaaa3", "pontos": 90, "moedas": 3})
+    assert pl["jogos"]["cobrinha"] == {"melhor": 7, "partidas": 2, "moedas": 13} and pl["moedas_total"] == 16, pl
+    code, pl = call("POST", "/placar", {"jogo": "cobrinha", "pid": "aaaaaaaa1", "pontos": 7, "moedas": 9})   # reenvio
+    assert code == 200 and pl["moedas_total"] == 16, pl
+    for ruim in [{"jogo": "xadrez", "pid": "bbbbbbbb1", "pontos": 1, "moedas": 1},
+                 {"jogo": "cobrinha", "pid": "curto", "pontos": 1, "moedas": 1},
+                 {"jogo": "cobrinha", "pid": "bbbbbbbb2", "pontos": -1, "moedas": 1},
+                 {"jogo": "memoria", "pid": "bbbbbbbb3", "pontos": 1, "moedas": 999},
+                 {"jogo": ["a"], "pid": "bbbbbbbb4", "pontos": 1, "moedas": 1},
+                 {"jogo": "cobrinha", "pid": "bbbbbbbb5", "pontos": "x", "moedas": 1}]:
+        assert call("POST", "/placar", ruim)[0] == 400, ruim
+    assert call("GET", "/placar")[1]["moedas_total"] == 16
+    assert call("GET", "/placar", headers=nohdr)[0] == 401 and call("POST", "/placar", {"jogo": "cobrinha"}, headers=nohdr)[0] == 401
+    print("placar ok")
 finally:
     proc.terminate()
 

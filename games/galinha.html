@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Pega-galinha</title>
+<link rel="stylesheet" href="jogos.css">
+<style>
+.board{aspect-ratio:380/210;background:#6FAE4C}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+</style>
+</head>
+<body>
+<main class="app">
+  <h1>Pega-galinha</h1>
+  <div class="stats" style="--cols:4">
+    <div class="stat"><span>Pegas</span><b id="score">0</b></div>
+    <div class="stat"><span>Tempo</span><b id="time">0:45</b></div>
+    <div class="stat"><span>Recorde</span><b id="best">0</b></div>
+    <div class="stat"><span>Moedas</span><b id="coins">0</b></div>
+  </div>
+  <div class="board" id="board">
+    <canvas id="cv" aria-label="Campo com galinhas"></canvas>
+    <div class="overlay" id="ov">
+      <h2 id="ovTitle">As galinhas fugiram!</h2>
+      <p id="ovText">Toque nas galinhas para pegá-las antes que o tempo acabe. Quanto mais você pega, mais galinhas e mais rápidas elas ficam.</p>
+      <button class="go" id="go">Começar</button>
+    </div>
+  </div>
+  <p class="hint">45 segundos. A cada 3 pegas você ganha 1 moeda.<br>Use o mouse ou o dedo; o alvo tracejado mostra a galinha que você vai pegar.</p>
+</main>
+
+<script src="bridge.js"></script>
+<script>
+(function(){
+  var LW = 380, LH = 210;                 // campo em unidades lógicas
+  var X0 = 16, X1 = LW - 16, Y0 = 36, Y1 = 168;   // onde as galinhas andam (acima da cerca)
+  var DURATION = 45;
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var board = document.getElementById('board');
+  var ov = document.getElementById('ov');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var goBtn = document.getElementById('go');
+  var elScore = document.getElementById('score');
+  var elTime = document.getElementById('time');
+  var elBest = document.getElementById('best');
+  var elCoins = document.getElementById('coins');
+
+  var best = 0, base = 0, alive = false, running = false;
+  var hens = [], feathers = [], score = 0, gt = 0, last = 0, raf = 0, prevBest = 0, ptr = null, dpr = 1;
+
+  function fmt(s){ s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function hud(){
+    elScore.textContent = score;
+    elTime.textContent = fmt(DURATION - gt);
+    elBest.textContent = Math.max(best, score);
+    elCoins.textContent = base + (alive ? Math.floor(score / 3) : 0);
+  }
+  var rnd = function(a, b){ return a + Math.random() * (b - a); };
+  var wantHens = function(){ return Math.min(8, 3 + Math.floor(score / 4)); };
+  var speed = function(){ return Math.min(95, 26 + score * 2.4); };
+
+  function newHen(edge){
+    var x = edge ? (Math.random() < 0.5 ? X0 : X1) : rnd(X0 + 20, X1 - 20);
+    return { x: x, y: rnd(Y0, Y1), vx: 0, vy: 0, dir: 1, turn: 0, peck: 0, ph: rnd(0, 6), caught: 0 };
+  }
+  function wander(h){
+    var a = rnd(0, Math.PI * 2), s = speed() * rnd(0.5, 1);
+    h.vx = Math.cos(a) * s; h.vy = Math.sin(a) * s * 0.7;
+    h.turn = rnd(0.7, 2.0);
+    h.peck = Math.random() < 0.25 ? rnd(0.4, 0.9) : 0;   // às vezes para pra bicar
+  }
+
+  function fit(){
+    dpr = window.devicePixelRatio || 1;
+    var w = board.clientWidth;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(w * LH / LW * dpr);
+    draw(0);
+  }
+
+  function update(dt){
+    gt += dt;
+    for (var i = hens.length - 1; i >= 0; i--) {
+      var h = hens[i];
+      if (h.caught > 0) { h.caught -= dt; if (h.caught <= 0) hens.splice(i, 1); continue; }
+      h.turn -= dt;
+      if (h.turn <= 0) wander(h);
+      var sp = h.peck > 0 ? 0 : 1;
+      if (h.peck > 0) h.peck -= dt;
+      h.x += h.vx * dt * sp; h.y += h.vy * dt * sp;
+      if (h.x < X0) { h.x = X0; h.vx = Math.abs(h.vx); }
+      if (h.x > X1) { h.x = X1; h.vx = -Math.abs(h.vx); }
+      if (h.y < Y0) { h.y = Y0; h.vy = Math.abs(h.vy); }
+      if (h.y > Y1) { h.y = Y1; h.vy = -Math.abs(h.vy); }
+      if (Math.abs(h.vx) > 2) h.dir = h.vx > 0 ? 1 : -1;
+      h.ph += dt * (sp ? 9 : 14);
+    }
+    var live = hens.filter(function(h){ return !h.caught; }).length;
+    if (live < wantHens()) hens.push(newHen(true));
+    for (var j = feathers.length - 1; j >= 0; j--) {
+      var f = feathers[j];
+      f.l -= dt; f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 90 * dt;
+      if (f.l <= 0) feathers.splice(j, 1);
+    }
+  }
+
+  // galinha "em foco": a mais perto do dedo/mouse, dentro do alcance
+  function focus(){
+    if (!ptr) return null;
+    var best_ = null, bd = 26;
+    hens.forEach(function(h){
+      if (h.caught) return;
+      var d = Math.hypot(h.x - ptr.x, (h.y - 4) - ptr.y);
+      if (d < bd) { bd = d; best_ = h; }
+    });
+    return best_;
+  }
+
+  function catchHen(h){
+    h.caught = 0.3;
+    score++;
+    for (var i = 0; i < 9; i++) feathers.push({ x: h.x, y: h.y - 6, vx: rnd(-40, 40), vy: rnd(-70, -10), l: rnd(0.4, 0.8) });
+    hud();
+  }
+
+  function pt(e){
+    var r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * LW, y: (e.clientY - r.top) / r.height * LH };
+  }
+
+  function drawHen(h, t){
+    var bob = h.peck > 0 ? 0 : Math.abs(Math.sin(h.ph)) * 1.6;
+    var dip = h.peck > 0 ? Math.abs(Math.sin(h.ph)) * 5 : 0;   // bicando
+    ctx.save();
+    ctx.translate(h.x, h.y - bob);
+    if (h.caught > 0) { var k = h.caught / 0.3; ctx.globalAlpha = k; ctx.translate(0, -(1 - k) * 18); }
+    ctx.scale(h.dir, 1);
+    ctx.fillStyle = 'rgba(30,60,20,.25)';
+    ctx.beginPath(); ctx.ellipse(0, 11 + bob, 13, 4, 0, 0, 7); ctx.fill();
+    // pernas
+    ctx.strokeStyle = '#E8892B'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    var sw = h.peck > 0 ? 0 : Math.sin(h.ph) * 3;
+    ctx.beginPath(); ctx.moveTo(-3, 7); ctx.lineTo(-3 + sw, 12); ctx.moveTo(3, 7); ctx.lineTo(3 - sw, 12); ctx.stroke();
+    // corpo e asa
+    ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#D9DDD0'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(0, 0, 13, 10, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#EDEFE6';
+    ctx.beginPath(); ctx.ellipse(-3, 1, 7, 5, -0.2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.moveTo(-11, -3); ctx.lineTo(-17, -9); ctx.lineTo(-12, 1); ctx.closePath(); ctx.fill();   // rabo
+    // cabeça
+    var hx = 10, hy = -8 + dip;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(hx, hy, 6, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#D93A32';   // crista
+    ctx.beginPath(); ctx.arc(hx - 2, hy - 6, 2.4, 0, 7); ctx.arc(hx + 1, hy - 7, 2.6, 0, 7); ctx.arc(hx + 4, hy - 5.5, 2, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hx + 1, hy + 5, 2, 3, 0, 0, 7); ctx.fill();   // barbela
+    ctx.fillStyle = '#F2A23A';   // bico
+    ctx.beginPath(); ctx.moveTo(hx + 5, hy - 1.5); ctx.lineTo(hx + 11, hy + 0.5); ctx.lineTo(hx + 5, hy + 2.5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#1B2A0B';
+    ctx.beginPath(); ctx.arc(hx + 2.5, hy - 1.5, 1.2, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  function draw(t){
+    var s = cv.width / LW;
+    ctx.setTransform(s, 0, 0, s, 0, 0);
+    // campo
+    ctx.fillStyle = '#6FAE4C'; ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = '#65A344';
+    for (var i = 0; i < 9; i++) ctx.fillRect(0, 26 + i * 16, LW, 8);
+    ctx.fillStyle = '#8A5A36'; ctx.fillRect(0, 176, LW, 34);   // solo
+    // grama
+    ctx.strokeStyle = '#4E8B35'; ctx.lineWidth = 1.2;
+    for (var g = 0; g < 26; g++) {
+      var gx = (g * 83) % LW, gy = 30 + ((g * 47) % 140);
+      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx - 1.5, gy - 4); ctx.moveTo(gx + 2, gy); ctx.lineTo(gx + 3, gy - 4); ctx.stroke();
+    }
+    var f = focus();
+    hens.slice().sort(function(a, b){ return a.y - b.y; }).forEach(function(h){
+      drawHen(h, t);
+      if (h === f) {
+        ctx.save();
+        ctx.strokeStyle = '#E24B4A'; ctx.lineWidth = 1.6; ctx.setLineDash([4, 3]); ctx.lineDashOffset = -t * 12;
+        ctx.beginPath(); ctx.arc(h.x, h.y - 2, 19, 0, 7); ctx.stroke();
+        ctx.restore();
+      }
+    });
+    feathers.forEach(function(p){
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.l * 2));
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, 2.4, 1.2, p.l * 6, 0, 7); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    // cerca de madeira
+    ctx.fillStyle = '#A9743E';
+    ctx.fillRect(0, 180, LW, 5); ctx.fillRect(0, 192, LW, 5);
+    ctx.fillStyle = '#8C5C2E';
+    for (var p = 0; p < LW; p += 38) { ctx.fillRect(p + 6, 172, 8, 38); ctx.fillStyle = '#B98450'; ctx.fillRect(p + 6, 172, 8, 3); ctx.fillStyle = '#8C5C2E'; }
+    // barra de tempo
+    var k = Math.max(0, 1 - gt / DURATION);
+    ctx.fillStyle = 'rgba(38,52,15,.55)'; ctx.fillRect(8, 8, LW - 16, 10);
+    ctx.fillStyle = k > 0.25 ? '#F2A33A' : '#E24B4A'; ctx.fillRect(10, 10, (LW - 20) * k, 6);
+  }
+
+  function frame(ts){
+    if (!running) return;
+    raf = requestAnimationFrame(frame);
+    var dt = Math.min(0.05, (ts - last) / 1000);
+    last = ts;
+    update(dt);
+    draw(ts / 1000);
+    hud();
+    if (gt >= DURATION) end();
+  }
+  function begin(){
+    running = true;
+    last = performance.now();
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(frame);
+  }
+
+  function start(){
+    hens = []; feathers = []; score = 0; gt = 0;
+    for (var i = 0; i < wantHens(); i++) hens.push(newHen(false));
+    prevBest = best;
+    alive = true;
+    ov.hidden = true;
+    goBtn.dataset.resume = '';
+    hud();
+    begin();
+  }
+
+  function end(){
+    running = false;
+    alive = false;
+    cancelAnimationFrame(raf);
+    gt = DURATION;
+    var coins = Math.floor(score / 3);
+    ovTitle.textContent = score > prevBest ? 'Novo recorde!' : 'Tempo esgotado';
+    ovText.textContent = 'Você pegou ' + score + (score === 1 ? ' galinha' : ' galinhas') +
+      ' e ganhou ' + coins + (coins === 1 ? ' moeda.' : ' moedas.');
+    goBtn.textContent = 'Jogar de novo';
+    ov.hidden = false;
+    base += coins;
+    best = Math.max(best, score);
+    draw(performance.now() / 1000);
+    hud();
+    if (score > 0) FZ.result(score, coins);
+  }
+
+  function pause(){
+    if (!running) return;
+    running = false;
+    cancelAnimationFrame(raf);
+    ovTitle.textContent = 'Pausado';
+    ovText.textContent = 'As galinhas esperam por você.';
+    goBtn.textContent = 'Continuar';
+    goBtn.dataset.resume = '1';
+    ov.hidden = false;
+  }
+
+  goBtn.addEventListener('click', function(){
+    if (goBtn.dataset.resume === '1') { goBtn.dataset.resume = ''; ov.hidden = true; begin(); }
+    else start();
+  });
+
+  cv.addEventListener('pointermove', function(e){ ptr = pt(e); });
+  cv.addEventListener('pointerleave', function(){ ptr = null; });
+  cv.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    ptr = pt(e);
+    if (!running) return;
+    var h = focus();
+    if (h) catchHen(h);
+    if (e.pointerType === 'touch') setTimeout(function(){ ptr = null; }, 250);   // dedo levantou: some o alvo
+  });
+
+  window.addEventListener('keydown', function(e){
+    if ((e.key === ' ' || e.key === 'Enter') && !ov.hidden) { e.preventDefault(); goBtn.blur(); goBtn.click(); }
+    else if (e.key === ' ' && running) { e.preventDefault(); pause(); }
+  });
+  window.addEventListener('keyup', function(e){ if (e.key === ' ' || e.key === 'Enter') e.preventDefault(); });
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) pause(); });
+  window.addEventListener('resize', fit);
+
+  for (var i = 0; i < 3; i++) hens.push(newHen(false));
+  fit();
+  hud();
+  FZ.init('galinha', function(st){ best = st.melhor; base = st.moedas; hud(); });
+})();
+</script>
+</body>
+</html>

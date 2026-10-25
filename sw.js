@@ -1,6 +1,7 @@
 // Cache simples para o app funcionar offline depois da primeira visita.
-const CACHE = 'fazenda-v1.12.1';
-const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const CACHE = 'fazenda-v1.13.0';
+const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  'games/jogos.css', 'games/bridge.js', 'games/cobrinha.html', 'games/toupeira.html', 'games/memoria.html', 'games/galinha.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

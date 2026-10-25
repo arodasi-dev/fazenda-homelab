@@ -32,6 +32,9 @@ Gasto da secretária (o mesmo número do /gasto do Telegram), lido do banco dela
   SECRETARIA_PRICE_OUT_PER_MTOK preço por milhão de tokens de saída (padrão 5.0)
   SECRETARIA_CREDIT_USD         (opcional) crédito que você comprou; o saldo = crédito - gasto acumulado dela
   SECRETARIA_CREDIT_FROM        (opcional) mês da compra, AAAA-MM: só conta o gasto desse mês em diante
+
+Fliperama (joguinhos da fazenda): o placar e as moedas ficam em NOTES_DIR/placar.db (SQLite),
+sem configuração nenhuma.
 """
 import hmac
 import http.client
@@ -52,7 +55,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, unquote, quote, parse_qs
 
-VERSION = "1.11.0"
+VERSION = "1.12.0"
 NOTES_DIR = Path(os.environ.get("NOTES_DIR", "./notas"))
 TOKEN = os.environ.get("NOTES_TOKEN", "")
 ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGIN", "https://arodasi-dev.github.io").split(",") if o.strip()]
@@ -430,6 +433,36 @@ def known_container(name):
 
 
 # ---------------------------------------------------------------- HTTP
+# ---------------------------------------------------------------- placar dos joguinhos
+JOGOS = {"cobrinha": 800, "toupeira": 100, "memoria": 10, "galinha": 100}   # jogo -> máximo de moedas por partida
+PID_RE = re.compile(r"^[A-Za-z0-9_-]{8,40}$")
+PLACAR_LOCK = threading.Lock()
+
+
+def placar_db():
+    con = sqlite3.connect(str(NOTES_DIR / "placar.db"), timeout=5)
+    con.execute("CREATE TABLE IF NOT EXISTS partidas (id INTEGER PRIMARY KEY AUTOINCREMENT, pid TEXT UNIQUE, "
+                "jogo TEXT NOT NULL, pontos INTEGER NOT NULL, moedas INTEGER NOT NULL, quando TEXT NOT NULL)")
+    return con
+
+
+def placar_resumo(con):
+    jogos = {j: {"melhor": 0, "partidas": 0, "moedas": 0} for j in JOGOS}
+    for jogo, melhor, n, moedas in con.execute("SELECT jogo, MAX(pontos), COUNT(*), SUM(moedas) FROM partidas GROUP BY jogo"):
+        if jogo in jogos:
+            jogos[jogo] = {"melhor": melhor, "partidas": n, "moedas": moedas}
+    return {"jogos": jogos, "moedas_total": sum(j["moedas"] for j in jogos.values())}
+
+
+def placar_ler():
+    with PLACAR_LOCK:
+        con = placar_db()
+        try:
+            return placar_resumo(con)
+        finally:
+            con.close()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "FazendaServidor/" + VERSION
 
@@ -497,6 +530,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, credit_status())
         if parts == ["gasto"]:
             return self._send(200, secretaria_gasto())
+        if parts == ["placar"]:
+            try:
+                out = placar_ler()
+            except sqlite3.Error as e:
+                return self._send(500, {"error": "não consegui ler o placar: " + str(e)[:100]})
+            return self._send(200, out)
         if len(parts) == 3 and parts[0] == "containers" and parts[2] == "logs":
             c = known_container(parts[1])
             if not c:
@@ -545,6 +584,32 @@ class Handler(BaseHTTPRequestHandler):
             if st == 403:
                 return self._send(403, {"error": "o docker-socket-proxy bloqueou (precisa de POST=1 e ALLOW_RESTARTS=1)"})
             return self._send(502, {"error": f"docker respondeu HTTP {st}"})
+        if parts == ["placar"]:   # fim de uma partida de um joguinho
+            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                if not 0 < length <= 1000:
+                    raise ValueError
+                d = json.loads(self.rfile.read(length).decode("utf-8"))
+                jogo, pid = d["jogo"], str(d["pid"])
+                pontos, moedas = int(d["pontos"]), int(d["moedas"])
+                if jogo not in JOGOS or not PID_RE.match(pid) or not 0 <= pontos <= 100000 or not 0 <= moedas <= JOGOS[jogo]:
+                    raise ValueError
+            except Exception:
+                return self._send(400, {"error": "partida inválida"})
+            try:
+                with PLACAR_LOCK:
+                    con = placar_db()
+                    try:
+                        # o app reenvia partidas guardadas offline: o pid evita contar duas vezes
+                        con.execute("INSERT OR IGNORE INTO partidas (pid, jogo, pontos, moedas, quando) VALUES (?,?,?,?,?)",
+                                    (pid, jogo, pontos, moedas, now_iso()))
+                        con.commit()
+                        out = placar_resumo(con)
+                    finally:
+                        con.close()
+            except sqlite3.Error as e:
+                return self._send(500, {"error": "não consegui gravar o placar: " + str(e)[:100]})
+            return self._send(200, out)
         self._send(404, {"error": "rota desconhecida"})
 
     def do_PUT(self):

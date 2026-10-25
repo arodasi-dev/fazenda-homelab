@@ -1,0 +1,29 @@
+/* Visual comum dos joguinhos da fazenda: campo verde, solo marrom, cartas roxas, cerca de madeira. */
+:root{
+  --bg:#EEF3DF;--ink:#26340F;--ink2:#566B2E;--panel:#FBFCF4;--line:#CBD8A8;
+  --btn:#3B6D11;--btnink:#FFFFFF;--pad:#DDE8BE;--padink:#26340F;--amber:#F2A33A;--green:#3B6D11;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#141D0A;--ink:#E8F0D2;--ink2:#A6BB7A;--panel:#1E2A12;--line:#35481F;
+    --btn:#8CC84B;--btnink:#141D0A;--pad:#2B3C19;--padink:#E8F0D2;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.app{max-width:440px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px))}
+h1{font-size:22px;font-weight:700;margin:2px 0 10px;letter-spacing:.2px}
+.stats{display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));gap:8px;margin-bottom:12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 10px}
+.stat span{display:block;font-size:12px;color:var(--ink2)}
+.stat b{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.board{position:relative;width:100%;margin:0 auto;border-radius:14px;overflow:hidden;border:3px solid var(--green);touch-action:none;background:#7E5130}
+.board.sq{aspect-ratio:1/1;width:min(100%,max(240px,calc(100vh - 340px)))}
+.overlay{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(20,29,10,.74);color:#F2F7E2;gap:6px}
+.overlay[hidden]{display:none}
+.overlay h2{margin:0;font-size:24px;font-weight:700}
+.overlay p{margin:0 0 10px;font-size:15px;line-height:1.4;max-width:280px}
+.go{font:inherit;font-size:17px;font-weight:700;background:var(--amber);color:#3A2208;border:0;border-radius:12px;padding:12px 26px;cursor:pointer;touch-action:manipulation}
+.go:active{transform:scale(.97)}
+.hint{font-size:13px;color:var(--ink2);text-align:center;margin:14px 0 0;line-height:1.5}
+button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
